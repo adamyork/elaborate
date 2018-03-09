@@ -1,4 +1,4 @@
-package com.github.adamyork.elaborate;
+package com.github.adamyork.elaborate.model;
 
 public class CallObject {
 
