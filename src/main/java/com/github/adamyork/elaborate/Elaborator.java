@@ -11,17 +11,17 @@ import java.io.File;
 import java.io.PrintStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.spi.ToolProvider;
 import java.util.stream.Collectors;
 
-public class Engine {
+/**
+ * Created by Adam York on 3/9/2018.
+ * Copyright 2018
+ */
+public class Elaborator {
 
     private final String inputPath;
     private final String className;
@@ -29,7 +29,7 @@ public class Engine {
     private final String outputFilePath;
     private final Map<Boolean, Parser> parserMap;
 
-    public Engine(final String inputPath, final String className, final String methodName, final String outputFilePath) {
+    public Elaborator(final String inputPath, final String className, final String methodName, final String outputFilePath) {
         this.inputPath = inputPath;
         this.className = className;
         this.methodName = methodName;
@@ -39,14 +39,13 @@ public class Engine {
         parserMap.put(false, new DirParser());
     }
 
-    public int run() {
-        final ArrayList<Integer> exitCodes = new ArrayList<>();
-        exitCodes.add(1);
+    public List<CallObject> run() {
         final File source = new File(inputPath);
         final boolean isArchive = inputPath.contains(".jar") || inputPath.contains(".war");
-        final File file = parserMap.get(isArchive).parse(source, inputPath);
+        final Optional<File> file = parserMap.get(isArchive).parse(source, inputPath, className);
         final Optional<ToolProvider> toolsProviderOptional = ToolProvider.findFirst("javap");
-        toolsProviderOptional.ifPresent(toolProvider -> {
+        if (toolsProviderOptional.isPresent() && file.isPresent()) {
+            final ToolProvider toolProvider = toolsProviderOptional.get();
             final Charset charset = StandardCharsets.UTF_8;
             final ByteArrayOutputStream contentByteArrayStream = new ByteArrayOutputStream();
             final ByteArrayOutputStream errorByteArrayStream = new ByteArrayOutputStream();
@@ -54,7 +53,7 @@ public class Engine {
                     true, charset.name())).apply(null);
             final PrintStream errorStream = Unchecked.function(t -> new PrintStream(errorByteArrayStream,
                     true, charset.name())).apply(null);
-            toolProvider.run(contentsStream, errorStream, "-c", String.valueOf(file));
+            toolProvider.run(contentsStream, errorStream, "-c", String.valueOf(file.get()));
             final String content = new String(contentByteArrayStream.toByteArray(), charset);
             final String error = new String(errorByteArrayStream.toByteArray(), charset);
             final String whiteSpaceStripped = content.replace(" ", "");
@@ -63,10 +62,9 @@ public class Engine {
             final List<CallObject> callObjects = findInnerCallsInMethod(whiteSpaceStripped);
             Unchecked.consumer(o -> contentByteArrayStream.close()).accept(null);
             Unchecked.consumer(o -> errorByteArrayStream.close()).accept(null);
-            exitCodes.clear();
-            exitCodes.add(0);
-        });
-        return exitCodes.get(0);
+            return callObjects;
+        }
+        return new ArrayList<>();
     }
 
     public List<CallObject> findInnerCallsInMethod(final String content) {
@@ -81,12 +79,24 @@ public class Engine {
                 final List<String> lines = List.of(found.split("\n"));
                 final List<String> filtered = lines.stream()
                         .filter(line -> line.contains("invokevirtual"))
-                        .map(line -> line.replaceAll("^.*invokevirtual.*\\/\\/Method", ""))
+                        .map(line -> line.replaceAll("^.*invokevirtual.*//Method", ""))
                         .map(line -> line.substring(0, line.indexOf(":")))
                         .collect(Collectors.toList());
                 return filtered.stream().map(line -> {
                     final String[] parts = line.split("\\.");
-                    return new CallObject(parts[0], parts[1]);
+                    CallObject callObject;
+                    if (parts.length == 1) {
+                        //TODO
+                        //either the method is directly on the same object or
+                        //the method is on the super class
+                        callObject = new CallObject(className, parts[0]);
+                    } else {
+                        callObject = new CallObject(parts[0].replaceAll("/", "."), parts[1]);
+                    }
+                    final Elaborator elaborator = new Elaborator(inputPath, callObject.getType(), callObject.getMethod(), "");
+                    final List<CallObject> callObjects = elaborator.run();
+                    callObject.setCallObjects(callObjects);
+                    return callObject;
                 }).collect(Collectors.toList());
             }
         }

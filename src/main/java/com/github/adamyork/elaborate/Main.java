@@ -1,15 +1,16 @@
 package com.github.adamyork.elaborate;
 
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.DefaultParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
+import com.github.adamyork.elaborate.model.CallObject;
+import com.github.adamyork.elaborate.service.PrinterService;
+import org.apache.commons.cli.*;
 
 import java.io.IOException;
+import java.util.List;
 
+/**
+ * Created by Adam York on 3/9/2018.
+ * Copyright 2018
+ */
 public class Main {
 
     public static void main(final String[] args) throws IOException {
@@ -49,7 +50,13 @@ public class Main {
         final String methodName = cmd.getOptionValue("method");
         final String outputFilePath = cmd.getOptionValue("output");
 
-        final Engine engine = new Engine(inputPath, className, methodName, outputFilePath);
-        System.exit(engine.run());
+        final Elaborator elaborator = new Elaborator(inputPath, className, methodName, outputFilePath);
+        final List<CallObject> callObjects = elaborator.run();
+
+        final PrinterService printerService = new PrinterService(className, methodName);
+        printerService.print(callObjects, 0);
+        System.exit(0);
     }
+
+
 }

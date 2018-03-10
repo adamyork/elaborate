@@ -3,7 +3,12 @@ package com.github.adamyork.elaborate.parser;
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
+/**
+ * Created by Adam York on 3/9/2018.
+ * Copyright 2018
+ */
 public class ArchiveParser implements Parser {
 
     private final Map<Boolean, Parser> parserMap;
@@ -15,8 +20,8 @@ public class ArchiveParser implements Parser {
     }
 
     @Override
-    public File parse(final File source, final String inputPath) {
+    public Optional<File> parse(final File source, final String inputPath, final String className) {
         final boolean isJar = inputPath.contains(".jar");
-        return parserMap.get(isJar).parse(source, inputPath);
+        return parserMap.get(isJar).parse(source, inputPath, className);
     }
 }
