@@ -26,14 +26,12 @@ public class Elaborator {
     private final String inputPath;
     private final String className;
     private final String methodName;
-    private final String outputFilePath;
     private final Map<Boolean, Parser> parserMap;
 
-    public Elaborator(final String inputPath, final String className, final String methodName, final String outputFilePath) {
+    public Elaborator(final String inputPath, final String className, final String methodName) {
         this.inputPath = inputPath;
         this.className = className;
         this.methodName = methodName;
-        this.outputFilePath = outputFilePath;
         parserMap = new HashMap<>();
         parserMap.put(true, new ArchiveParser());
         parserMap.put(false, new DirParser());
@@ -93,7 +91,7 @@ public class Elaborator {
                     } else {
                         callObject = new CallObject(parts[0].replaceAll("/", "."), parts[1]);
                     }
-                    final Elaborator elaborator = new Elaborator(inputPath, callObject.getType(), callObject.getMethod(), "");
+                    final Elaborator elaborator = new Elaborator(inputPath, callObject.getType(), callObject.getMethod());
                     final List<CallObject> callObjects = elaborator.run();
                     callObject.setCallObjects(callObjects);
                     return callObject;

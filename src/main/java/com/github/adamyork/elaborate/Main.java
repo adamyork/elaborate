@@ -1,11 +1,14 @@
 package com.github.adamyork.elaborate;
 
 import com.github.adamyork.elaborate.model.CallObject;
+import com.github.adamyork.elaborate.model.WriterMemo;
 import com.github.adamyork.elaborate.service.PrinterService;
+import com.github.adamyork.elaborate.service.WriterService;
 import org.apache.commons.cli.*;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Created by Adam York on 3/9/2018.
@@ -29,7 +32,7 @@ public class Main {
         options.addOption(methodOption);
 
         final Option outputOption = new Option("o", "output", true, "output file");
-        outputOption.setRequired(true);
+        outputOption.setRequired(false);
         options.addOption(outputOption);
 
         final CommandLineParser parser = new DefaultParser();
@@ -48,10 +51,16 @@ public class Main {
         final String inputPath = cmd.getOptionValue("input");
         final String className = cmd.getOptionValue("class");
         final String methodName = cmd.getOptionValue("method");
-        final String outputFilePath = cmd.getOptionValue("output");
 
-        final Elaborator elaborator = new Elaborator(inputPath, className, methodName, outputFilePath);
+        final Elaborator elaborator = new Elaborator(inputPath, className, methodName);
         final List<CallObject> callObjects = elaborator.run();
+
+        final Optional<String> outputFilePath = Optional.ofNullable(cmd.getOptionValue("output"));
+        if (outputFilePath.isPresent()) {
+            final WriterService writerService = new WriterService(className, methodName, outputFilePath.get());
+            writerService.write(callObjects, 0, new WriterMemo(""));
+            System.exit(0);
+        }
 
         final PrinterService printerService = new PrinterService(className, methodName);
         printerService.print(callObjects, 0);
