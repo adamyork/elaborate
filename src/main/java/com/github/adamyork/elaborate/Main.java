@@ -1,6 +1,6 @@
 package com.github.adamyork.elaborate;
 
-import com.github.adamyork.elaborate.model.CallObject;
+import com.github.adamyork.elaborate.model.MethodInvocation;
 import com.github.adamyork.elaborate.model.WriterMemo;
 import com.github.adamyork.elaborate.service.PrinterService;
 import com.github.adamyork.elaborate.service.WriterService;
@@ -53,17 +53,17 @@ public class Main {
         final String methodName = cmd.getOptionValue("method");
 
         final Elaborator elaborator = new Elaborator(inputPath, className, methodName);
-        final List<CallObject> callObjects = elaborator.run();
+        final List<MethodInvocation> methodInvocations = elaborator.run();
 
         final Optional<String> outputFilePath = Optional.ofNullable(cmd.getOptionValue("output"));
         if (outputFilePath.isPresent()) {
             final WriterService writerService = new WriterService(className, methodName, outputFilePath.get());
-            writerService.write(callObjects, 0, new WriterMemo(""));
+            writerService.write(methodInvocations, 0, new WriterMemo(""));
             System.exit(0);
         }
 
         final PrinterService printerService = new PrinterService(className, methodName);
-        printerService.print(callObjects, 0);
+        printerService.print(methodInvocations, 0);
         System.exit(0);
     }
 
