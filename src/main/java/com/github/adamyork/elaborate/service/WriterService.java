@@ -47,7 +47,11 @@ public class WriterService {
                 final WriterMemo nextMemo = new WriterMemo(output);
                 output = writerService.build(methodInvocation.getMethodInvocations(), nextIndentationLevel, nextMemo).getOutput();
             } else {
-                output += tabs + methodInvocation.getType() + "::" + methodInvocation.getMethod() + "\n";
+                String nextCall = methodInvocation.getType() + "::" + methodInvocation.getMethod() + "\n";
+                if (nextCall.contains("::\"<init>\"")) {
+                    nextCall = tabs + "new " + nextCall.replace("::\"<init>\"", "");
+                }
+                output += tabs + nextCall;
             }
         }
         return new WriterMemo(output);

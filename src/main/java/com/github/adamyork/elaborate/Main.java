@@ -1,12 +1,21 @@
 package com.github.adamyork.elaborate;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.adamyork.elaborate.model.MethodInvocation;
 import com.github.adamyork.elaborate.model.WriterMemo;
 import com.github.adamyork.elaborate.service.PrinterService;
 import com.github.adamyork.elaborate.service.WriterService;
-import org.apache.commons.cli.*;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.DefaultParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,23 +26,11 @@ import java.util.Optional;
 public class Main {
 
     public static void main(final String[] args) throws IOException {
+
         final Options options = new Options();
-
-        final Option inputOption = new Option("i", "input", true, "input file or folder.");
-        inputOption.setRequired(true);
-        options.addOption(inputOption);
-
-        final Option classOption = new Option("c", "class", true, "class with entry method");
+        final Option classOption = new Option("c", "config", true, "class with entry method");
         classOption.setRequired(true);
         options.addOption(classOption);
-
-        final Option methodOption = new Option("m", "method", true, "name of entry method");
-        methodOption.setRequired(true);
-        options.addOption(methodOption);
-
-        final Option outputOption = new Option("o", "output", true, "output file");
-        outputOption.setRequired(false);
-        options.addOption(outputOption);
 
         final CommandLineParser parser = new DefaultParser();
         final HelpFormatter formatter = new HelpFormatter();
@@ -48,14 +45,22 @@ public class Main {
             return;
         }
 
-        final String inputPath = cmd.getOptionValue("input");
-        final String className = cmd.getOptionValue("class");
-        final String methodName = cmd.getOptionValue("method");
+        final String json = new String(Files.readAllBytes(Paths.get(cmd.getOptionValue("config"))));
+        final ObjectMapper mapper = new ObjectMapper();
+        final Config config = mapper.readValue(json, Config.class);
 
-        final Elaborator elaborator = new Elaborator(inputPath, className, methodName);
+        final String inputPath = config.getInput();
+        final String className = config.getEntryClass();
+        final String methodName = config.getEntryMethod();
+        final List<String> includes = config.getIncludes();
+        final List<String> excludes = config.getExcludes();
+        final List<String> implicitMethods = config.getImplicitMethods();
+
+        final Elaborator elaborator = new Elaborator(inputPath, className, methodName,
+                includes, excludes, implicitMethods);
         final List<MethodInvocation> methodInvocations = elaborator.run();
 
-        final Optional<String> outputFilePath = Optional.ofNullable(cmd.getOptionValue("output"));
+        final Optional<String> outputFilePath = Optional.ofNullable(config.getOutput());
         if (outputFilePath.isPresent()) {
             final WriterService writerService = new WriterService(className, methodName, outputFilePath.get());
             writerService.write(methodInvocations, 0, new WriterMemo(""));
@@ -66,6 +71,5 @@ public class Main {
         printerService.print(methodInvocations, 0);
         System.exit(0);
     }
-
 
 }

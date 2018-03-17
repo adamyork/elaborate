@@ -7,7 +7,11 @@ import com.github.adamyork.elaborate.parser.DirParser;
 import com.github.adamyork.elaborate.parser.Parser;
 
 import java.io.File;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -21,12 +25,23 @@ public class Elaborator {
     private final String inputPath;
     private final String className;
     private final String methodName;
+    private final List<String> includes;
+    private final List<String> excludes;
+    private final List<String> implicitMethod;
     private final Map<Boolean, Parser> parserMap;
 
-    public Elaborator(final String inputPath, final String className, final String methodName) {
+    public Elaborator(final String inputPath,
+                      final String className,
+                      final String methodName,
+                      final List<String> includes,
+                      final List<String> excludes,
+                      final List<String> implicitMethods) {
         this.inputPath = inputPath;
         this.className = className;
         this.methodName = methodName;
+        this.includes = includes;
+        this.excludes = excludes;
+        this.implicitMethod = implicitMethods;
         parserMap = new HashMap<>();
         parserMap.put(true, new ArchiveParser());
         parserMap.put(false, new DirParser());
@@ -68,17 +83,22 @@ public class Elaborator {
             final Pattern pattern2 = Pattern.compile("(?s)Code:.*?(?=\\n\\n)|(?s)Code:.*?(?=\\n})");
             final Matcher matcher2 = pattern2.matcher(sub);
             if (matcher2.find()) {
-                final Pattern pattern3 = Pattern.compile("return\\s", Pattern.MULTILINE);
+                Pattern pattern3 = Pattern.compile("return$", Pattern.MULTILINE);
+                if (System.getProperty("os.name").toLowerCase().contains("win")) {
+                    pattern3 = Pattern.compile("return\\s", Pattern.MULTILINE);
+                }
                 final String found = matcher2.group();
                 final Matcher matcher3 = pattern3.matcher(found);
                 if (matcher3.find()) {
                     final String methodBlock = found.substring(0, matcher3.end());
                     final List<String> lines = List.of(methodBlock.split("\n"));
                     final List<String> filtered = lines.stream()
-                            .filter(line -> line.contains("invokevirtual") || line.contains("invokeinterface") || line.contains("invokestatic"))
+                            .filter(line -> line.contains("invokevirtual") || line.contains("invokeinterface")
+                                    || line.contains("invokestatic") || line.contains("invokespecial"))
                             .map(line -> line.replaceAll("^.*invokevirtual.*Method", ""))
                             .map(line -> line.replaceAll("^.*invokeinterface.*Method", ""))
                             .map(line -> line.replaceAll("^.*invokestatic.*Method", ""))
+                            .map(line -> line.replaceAll("^.*invokespecial.*Method", ""))
                             .collect(Collectors.toList());
                     return filtered.stream().map(line -> {
                         final String[] parts = line.split(":\\(");
