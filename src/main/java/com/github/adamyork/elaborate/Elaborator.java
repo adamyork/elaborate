@@ -7,11 +7,7 @@ import com.github.adamyork.elaborate.parser.DirParser;
 import com.github.adamyork.elaborate.parser.Parser;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -99,12 +95,21 @@ public class Elaborator {
                             .map(line -> line.replaceAll("^.*invokeinterface.*Method", ""))
                             .map(line -> line.replaceAll("^.*invokestatic.*Method", ""))
                             .map(line -> line.replaceAll("^.*invokespecial.*Method", ""))
+                            .filter(line -> {
+                                final String normalized = line.replace("/", ".").split(":")[0];
+                                return excludes.stream().noneMatch(exclude -> {
+                                    final Pattern excludePattern = Pattern.compile(exclude);
+                                    final Matcher excludeMatcher = excludePattern.matcher(normalized);
+                                    return excludeMatcher.find();
+                                });
+                            })
                             .collect(Collectors.toList());
-                    return filtered.stream().map(line -> {
+                    System.out.println("found " + filtered.size() + " invocations");
+                    final List<MethodInvocation> invocs = filtered.stream().map(line -> {
                         final String[] parts = line.split(":\\(");
                         final String methodReference = parts[0];
                         final String right = parts[1];
-                        final String[] argumentsParts = right.split(";\\)");
+                        final String[] argumentsParts = right.split(";\\)|;Z\\)");
                         String arguments = "";
                         if (argumentsParts.length != 1) {
                             arguments = argumentsParts[0].substring(1);
@@ -124,6 +129,7 @@ public class Elaborator {
                         if (invocationClassMetadata.isPresent()) {
                             final ClassMetadata maybeInterfaceClassMetadata = invocationClassMetadata.get();
                             if (maybeInterfaceClassMetadata.isInterface()) {
+                                System.out.println("interface found in invocation list");
                                 final List<ClassMetadata> implementations = classMetadataList.stream().filter(metadata -> {
                                     return metadata.implementationOf().stream().anyMatch(impl -> {
                                         return impl.contains(maybeInterfaceClassMetadata.getClassName());
@@ -134,6 +140,7 @@ public class Elaborator {
                                 }).flatMap(List::stream).collect(Collectors.toList());
                                 methodInvocation.setMethodInvocations(aggregateInvocations);
                             } else {
+                                System.out.println("no interface object in invocation list");
                                 final List<MethodInvocation> tmp = findInnerCallsInMethod(maybeInterfaceClassMetadata, classMetadataList, methodInvocation.getMethod(),
                                         methodInvocation.getArguments());
                                 methodInvocation.setMethodInvocations(tmp);
@@ -141,6 +148,8 @@ public class Elaborator {
                         }
                         return methodInvocation;
                     }).collect(Collectors.toList());
+                    System.out.println("done processing className " + classMetadata.getClassName() + " meth ref " + methodNameReference);
+                    return invocs;
                 }
             }
         }
