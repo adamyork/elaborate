@@ -52,24 +52,33 @@ public abstract class AbstractParser implements Parser {
 
     private ClassMetadata buildMetadata(final String content, final String className) {
         boolean isInterface = false;
-        final Pattern isInterfacePattern = Pattern.compile("publicinterface.*" + className);
+        final String normalizedClassName = className.replace("$", "\\$");
+        final Pattern isInterfacePattern = Pattern.compile("publicinterface.*" + normalizedClassName);
         final Matcher isInterfaceMatcher = isInterfacePattern.matcher(content);
         if (isInterfaceMatcher.find()) {
             isInterface = true;
         }
-        final Pattern implementationOfPattern = Pattern.compile("class.*" + className + "implements.*\\{");
+        final Pattern implementationOfPattern = Pattern.compile("class.*" + normalizedClassName + "implements.*\\{");
         final Matcher implementationOfMatcher = implementationOfPattern.matcher(content);
         final List<String> interfaces = new ArrayList<>();
         if (implementationOfMatcher.find()) {
             final String group = implementationOfMatcher.group();
             final String matches = group.substring(0, group.length() - 1);
-            final List<String> interfaceStrings = buildInterfaceStringsList(matches.split("implements")[1]);
+            final List<String> interfaceStrings = buildStringsList(matches.split("implements")[1]);
             interfaces.addAll(interfaceStrings);
         }
-        return new ClassMetadata(className, content, isInterface, interfaces);
+        final Pattern superClassPattern = Pattern.compile("class.*" + normalizedClassName + "extends.*\\{");
+        final Matcher superClassMatcher = superClassPattern.matcher(content);
+        String superClass = "";
+        if (superClassMatcher.find()) {
+            final String superClassGroup = superClassMatcher.group();
+            final String superClassMatches = superClassGroup.substring(0, superClassGroup.length() - 1);
+            superClass = buildStringsList(superClassMatches.split("extends")[1]).get(0);
+        }
+        return new ClassMetadata(className, content, superClass, isInterface, interfaces);
     }
 
-    private List<String> buildInterfaceStringsList(final String input) {
+    private List<String> buildStringsList(final String input) {
         final List<String> interfaceStringsList = new ArrayList<>();
         final List<String> chrs = new LinkedList<>(Arrays.asList(input.split("")));
         StringBuilder current = new StringBuilder();
@@ -92,4 +101,5 @@ public abstract class AbstractParser implements Parser {
         interfaceStringsList.add(current.toString());
         return interfaceStringsList;
     }
+
 }

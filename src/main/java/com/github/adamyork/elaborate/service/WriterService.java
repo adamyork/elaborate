@@ -49,7 +49,7 @@ public class WriterService {
             } else {
                 String nextCall = methodInvocation.getType() + "::" + methodInvocation.getMethod() + "\n";
                 if (nextCall.contains("::\"<init>\"")) {
-                    nextCall = tabs + "new " + nextCall.replace("::\"<init>\"", "");
+                    nextCall = "new " + nextCall.replace("::\"<init>\"", "");
                 }
                 output += tabs + nextCall;
             }

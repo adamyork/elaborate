@@ -131,7 +131,7 @@ public class Elaborator {
                             if (maybeInterfaceClassMetadata.isInterface()) {
                                 System.out.println("interface found in invocation list");
                                 final List<ClassMetadata> implementations = classMetadataList.stream().filter(metadata -> {
-                                    return metadata.implementationOf().stream().anyMatch(impl -> {
+                                    return metadata.getInterfaces().stream().anyMatch(impl -> {
                                         return impl.contains(maybeInterfaceClassMetadata.getClassName());
                                     });
                                 }).collect(Collectors.toList());
@@ -143,6 +143,20 @@ public class Elaborator {
                                 System.out.println("no interface object in invocation list");
                                 final List<MethodInvocation> tmp = findInnerCallsInMethod(maybeInterfaceClassMetadata, classMetadataList, methodInvocation.getMethod(),
                                         methodInvocation.getArguments());
+                                if (methodInvocation.getMethod().contains("<init>")) {
+                                    final List<MethodInvocation> impliedInvocations = implicitMethod.stream().map(method -> {
+                                        final Optional<ClassMetadata> newObjectClassMetadata = classMetadataList.stream().filter(metadata -> {
+                                            return metadata.getClassName().contains(methodInvocation.getType());
+                                        }).findFirst();
+                                        if (newObjectClassMetadata.isPresent()) {
+                                            return findInnerCallsInMethod(newObjectClassMetadata.get(), classMetadataList, method, "");
+                                        }
+                                        return null;
+                                    }).filter(Objects::nonNull)
+                                            .flatMap(List::stream)
+                                            .collect(Collectors.toList());
+                                    tmp.addAll(impliedInvocations);
+                                }
                                 methodInvocation.setMethodInvocations(tmp);
                             }
                         }
@@ -153,7 +167,26 @@ public class Elaborator {
                 }
             }
         }
-        return new ArrayList<>();
+        System.out.println("no method named " + methodNameReference + " exists on class");
+        List<MethodInvocation> maybeSuperClassInvocations = new ArrayList<>();
+        if (!classMetadata.getSuperClass().isEmpty()) {
+            System.out.println("checking super class for method");
+            final Optional<ClassMetadata> superClassMetadata = classMetadataList.stream().filter(metadata -> {
+                final int genericIndex = classMetadata.getSuperClass().indexOf("<");
+                String className;
+                try {
+                    className = classMetadata.getSuperClass().substring(0, genericIndex);
+                } catch (final StringIndexOutOfBoundsException exception) {
+                    className = classMetadata.getSuperClass();
+                }
+                return metadata.getClassName().equals(className);
+            }).findFirst();
+            if (superClassMetadata.isPresent()) {
+                maybeSuperClassInvocations = findInnerCallsInMethod(superClassMetadata.get(), classMetadataList, methodNameReference, "");
+                System.out.println("");
+            }
+        }
+        return maybeSuperClassInvocations;
     }
 
 }
