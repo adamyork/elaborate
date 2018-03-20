@@ -1,5 +1,6 @@
 package com.github.adamyork.elaborate.model;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -8,17 +9,16 @@ import java.util.List;
  */
 public class MethodInvocation {
 
-    private String type;
-    private String method;
-    private String arguments;
-    private List<MethodInvocation> methodInvocations;
+    private final String type;
+    private final String method;
+    private final String arguments;
+    private final List<MethodInvocation> methodInvocations;
 
-    public MethodInvocation(final String type,
-                            final String method,
-                            final String arguments) {
-        this.type = type;
-        this.method = method;
-        this.arguments = arguments;
+    private MethodInvocation(final Builder builder) {
+        this.type = builder.type;
+        this.method = builder.method;
+        this.arguments = builder.arguments;
+        this.methodInvocations = builder.methodInvocations;
     }
 
     public String getType() {
@@ -37,8 +37,56 @@ public class MethodInvocation {
         return methodInvocations;
     }
 
-    public void setMethodInvocations(final List<MethodInvocation> methodInvocations) {
-        this.methodInvocations = methodInvocations;
+    public static class Builder {
+
+        private String type;
+        private String method;
+        private String arguments;
+        private List<MethodInvocation> methodInvocations;
+
+        public Builder(final String type,
+                       final String method,
+                       final String arguments) {
+            this.type = type;
+            this.method = method;
+            this.arguments = arguments;
+            this.methodInvocations = new ArrayList<>();
+        }
+
+        public Builder(final String type,
+                       final String method,
+                       final String arguments,
+                       final List<MethodInvocation> methodInvocations) {
+            this.type = type;
+            this.method = method;
+            this.arguments = arguments;
+            this.methodInvocations = methodInvocations;
+        }
+
+        public Builder type(final String type) {
+            this.type = type;
+            return this;
+        }
+
+        public Builder method(final String method) {
+            this.method = method;
+            return this;
+        }
+
+        public Builder arguments(final String arguments) {
+            this.arguments = arguments;
+            return this;
+        }
+
+        public Builder methodInvocations(final List<MethodInvocation> methodInvocations) {
+            this.methodInvocations = methodInvocations;
+            return this;
+        }
+
+        public MethodInvocation build() {
+            return new MethodInvocation(this);
+        }
+
     }
 
 }

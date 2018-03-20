@@ -2,29 +2,73 @@
  * Copyright (c) 2018.
  */
 
-package com.github.adamyork.elaborate.parser;
+package com.github.adamyork.elaborate;
 
 import com.github.adamyork.elaborate.model.ClassMetadata;
+import org.apache.commons.io.IOUtils;
 import org.jooq.lambda.Unchecked;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.PrintStream;
+import java.io.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.spi.ToolProvider;
+import java.util.stream.Collectors;
 
-public abstract class AbstractParser implements Parser {
+@SuppressWarnings("WeakerAccess")
+public class Parser {
 
-    @Override
-    public List<ClassMetadata> parse(final File source, final String inputPath) {
-        return new ArrayList<>();
+    public List<ClassMetadata> parse(final File source, final List<String> libraryIncludes) {
+        final JarFile jarFile = Unchecked.function(f -> new JarFile(source)).apply(null);
+        final Enumeration<JarEntry> entries = jarFile.entries();
+        final List<ClassMetadata> classMetadataList = new ArrayList<>();
+        final List<JarEntry> libraryEntries = new ArrayList<>();
+        while (entries.hasMoreElements()) {
+            final JarEntry entry = entries.nextElement();
+            if (entry.getName().contains(".class")) {
+                final String trimmed = entry.getName().replace("WEB-INF/classes/", "");
+                final String className = trimmed.replace("/", ".").replace(".class", "");
+                final InputStream in = Unchecked.function(f -> jarFile.getInputStream(entry)).apply(null);
+                final File tempFile = Unchecked.function(f -> File.createTempFile("tmp", ".class")).apply(null);
+                tempFile.deleteOnExit();
+                final FileOutputStream out = Unchecked.function(f -> new FileOutputStream(tempFile)).apply(null);
+                Unchecked.function(f -> IOUtils.copy(in, out)).apply(null);
+                Unchecked.consumer(f -> in.close()).accept(null);
+                Unchecked.consumer(f -> out.close()).accept(null);
+                final ClassMetadata classMetadata = buildMetadata(tempFile, className);
+                classMetadataList.add(classMetadata);
+            } else if (entry.getName().contains(".jar")) {
+                libraryEntries.add(entry);
+            }
+        }
+        if (libraryIncludes.size() > 0) {
+            final List<JarEntry> filtered = libraryEntries.stream().filter(entry -> {
+                return libraryIncludes.stream().anyMatch(include -> {
+                    return entry.getName().contains(include);
+                });
+            }).collect(Collectors.toList());
+            final List<ClassMetadata> allLibraryMetadataList = filtered.stream().map(entry -> {
+                final InputStream in = Unchecked.function(f -> jarFile.getInputStream(entry)).apply(null);
+                final File tempFile = Unchecked.function(f -> File.createTempFile("tmp", ".class")).apply(null);
+                tempFile.deleteOnExit();
+                final FileOutputStream out = Unchecked.function(f -> new FileOutputStream(tempFile)).apply(null);
+                Unchecked.function(f -> IOUtils.copy(in, out)).apply(null);
+                Unchecked.consumer(f -> in.close()).accept(null);
+                Unchecked.consumer(f -> out.close()).accept(null);
+                final Parser parser = new Parser();
+                final List<ClassMetadata> libraryMetadataList = parser.parse(tempFile, libraryIncludes);
+                return libraryMetadataList;
+            }).flatMap(List::stream).collect(Collectors.toList());
+            classMetadataList.addAll(allLibraryMetadataList);
+        }
+        return classMetadataList;
     }
 
-    ClassMetadata buildMetadata(final File file, final String className) {
+    private ClassMetadata buildMetadata(final File file, final String className) {
         final Optional<ToolProvider> toolsProviderOptional = ToolProvider.findFirst("javap");
         if (toolsProviderOptional.isPresent()) {
             final ToolProvider toolProvider = toolsProviderOptional.get();
@@ -75,7 +119,7 @@ public abstract class AbstractParser implements Parser {
             final String superClassMatches = superClassGroup.substring(0, superClassGroup.length() - 1);
             superClass = buildStringsList(superClassMatches.split("extends")[1]).get(0);
         }
-        return new ClassMetadata(className, content, superClass, isInterface, interfaces);
+        return new ClassMetadata.Builder(className, content, superClass, isInterface, interfaces).build();
     }
 
     private List<String> buildStringsList(final String input) {

@@ -16,13 +16,13 @@ import java.util.List;
  * Created by Adam York on 3/9/2018.
  * Copyright 2018
  */
-public class WriterService {
+public class TextService {
 
     private final String className;
     private final String methodName;
     private final String outputFilePath;
 
-    public WriterService(final String className, final String methodName, final String outputFilePath) {
+    public TextService(final String className, final String methodName, final String outputFilePath) {
         this.className = className;
         this.methodName = methodName;
         this.outputFilePath = outputFilePath;
@@ -43,9 +43,9 @@ public class WriterService {
         tabs = StringUtils.repeat("\t", indentationLevel + 1);
         for (final MethodInvocation methodInvocation : methodInvocations) {
             if (methodInvocation.getMethodInvocations().size() > 0) {
-                final WriterService writerService = new WriterService(methodInvocation.getType(), methodInvocation.getMethod(), outputFilePath);
-                final WriterMemo nextMemo = new WriterMemo(output);
-                output = writerService.build(methodInvocation.getMethodInvocations(), nextIndentationLevel, nextMemo).getOutput();
+                final TextService textService = new TextService(methodInvocation.getType(), methodInvocation.getMethod(), outputFilePath);
+                final WriterMemo nextMemo = new WriterMemo.Builder(output).build();
+                output = textService.build(methodInvocation.getMethodInvocations(), nextIndentationLevel, nextMemo).getOutput();
             } else {
                 String nextCall = methodInvocation.getType() + "::" + methodInvocation.getMethod() + "\n";
                 if (nextCall.contains("::\"<init>\"")) {
@@ -54,6 +54,6 @@ public class WriterService {
                 output += tabs + nextCall;
             }
         }
-        return new WriterMemo(output);
+        return new WriterMemo.Builder(output).build();
     }
 }

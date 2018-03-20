@@ -2,12 +2,12 @@ package com.github.adamyork.elaborate;
 
 import com.github.adamyork.elaborate.model.ClassMetadata;
 import com.github.adamyork.elaborate.model.MethodInvocation;
-import com.github.adamyork.elaborate.parser.ArchiveParser;
-import com.github.adamyork.elaborate.parser.DirParser;
-import com.github.adamyork.elaborate.parser.Parser;
 
 import java.io.File;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
  * Created by Adam York on 3/9/2018.
  * Copyright 2018
  */
+@SuppressWarnings("WeakerAccess")
 public class Elaborator {
 
     private final String inputPath;
@@ -24,7 +25,6 @@ public class Elaborator {
     private final List<String> includes;
     private final List<String> excludes;
     private final List<String> implicitMethod;
-    private final Map<Boolean, Parser> parserMap;
 
     public Elaborator(final String inputPath,
                       final String className,
@@ -38,15 +38,12 @@ public class Elaborator {
         this.includes = includes;
         this.excludes = excludes;
         this.implicitMethod = implicitMethods;
-        parserMap = new HashMap<>();
-        parserMap.put(true, new ArchiveParser());
-        parserMap.put(false, new DirParser());
     }
 
     public List<MethodInvocation> run() {
         final File source = new File(inputPath);
-        final boolean isArchive = inputPath.contains(".jar") || inputPath.contains(".war");
-        final List<ClassMetadata> classMetadataList = parserMap.get(isArchive).parse(source, inputPath);
+        final Parser parser = new Parser();
+        final List<ClassMetadata> classMetadataList = parser.parse(source, includes);
         final Optional<ClassMetadata> targetMetadata = classMetadataList.stream()
                 .filter(metadata -> metadata.getClassName().equals(className))
                 .findFirst();
@@ -57,10 +54,10 @@ public class Elaborator {
         }
     }
 
-    public List<MethodInvocation> findInnerCallsInMethod(final ClassMetadata classMetadata,
-                                                         final List<ClassMetadata> classMetadataList,
-                                                         final String methodNameReference,
-                                                         final String methodArgsReference) {
+    private List<MethodInvocation> findInnerCallsInMethod(final ClassMetadata classMetadata,
+                                                          final List<ClassMetadata> classMetadataList,
+                                                          final String methodNameReference,
+                                                          final String methodArgsReference) {
         System.out.println("className " + classMetadata.getClassName() + " meth ref " + methodNameReference);
         Pattern pattern = Pattern.compile(methodNameReference + "\\(.*\\);");
         if (!methodArgsReference.isEmpty()) {
@@ -115,14 +112,13 @@ public class Elaborator {
                             arguments = argumentsParts[0].substring(1);
                         }
                         final String[] subParts = methodReference.split("\\.");
-                        MethodInvocation methodInvocation;
+                        final MethodInvocation methodInvocation;
                         if (subParts.length == 1) {
-                            methodInvocation = new MethodInvocation(classMetadata.getClassName(), subParts[0], arguments);
+                            methodInvocation = new MethodInvocation.Builder(classMetadata.getClassName(), subParts[0], arguments).build();
                         } else {
                             final String callObjectClassName = subParts[0].replaceAll("/", ".");
-                            methodInvocation = new MethodInvocation(callObjectClassName, subParts[1], arguments);
+                            methodInvocation = new MethodInvocation.Builder(callObjectClassName, subParts[1], arguments).build();
                         }
-                        methodInvocation.setMethodInvocations(new ArrayList<>());
                         final Optional<ClassMetadata> invocationClassMetadata = classMetadataList.stream()
                                 .filter(metadata -> metadata.getClassName().equals(methodInvocation.getType()))
                                 .findFirst();
@@ -138,7 +134,8 @@ public class Elaborator {
                                 final List<MethodInvocation> aggregateInvocations = implementations.stream().map(impl -> {
                                     return findInnerCallsInMethod(impl, classMetadataList, methodInvocation.getMethod(), methodInvocation.getArguments());
                                 }).flatMap(List::stream).collect(Collectors.toList());
-                                methodInvocation.setMethodInvocations(aggregateInvocations);
+                                return new MethodInvocation.Builder(methodInvocation.getType(), methodInvocation.getMethod(),
+                                        methodInvocation.getArguments(), aggregateInvocations).build();
                             } else {
                                 System.out.println("no interface object in invocation list");
                                 final List<MethodInvocation> tmp = findInnerCallsInMethod(maybeInterfaceClassMetadata, classMetadataList, methodInvocation.getMethod(),
@@ -157,7 +154,8 @@ public class Elaborator {
                                             .collect(Collectors.toList());
                                     tmp.addAll(impliedInvocations);
                                 }
-                                methodInvocation.setMethodInvocations(tmp);
+                                return new MethodInvocation.Builder(methodInvocation.getType(), methodInvocation.getMethod(),
+                                        methodInvocation.getArguments(), tmp).build();
                             }
                         }
                         return methodInvocation;

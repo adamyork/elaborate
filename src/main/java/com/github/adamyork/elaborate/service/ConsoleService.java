@@ -9,12 +9,12 @@ import java.util.List;
  * Created by Adam York on 3/9/2018.
  * Copyright 2018
  */
-public class PrinterService {
+public class ConsoleService {
 
     private final String className;
     private final String methodName;
 
-    public PrinterService(final String className, final String methodName) {
+    public ConsoleService(final String className, final String methodName) {
         this.className = className;
         this.methodName = methodName;
     }
@@ -26,8 +26,8 @@ public class PrinterService {
         tabs = StringUtils.repeat("\t", indentationLevel + 1);
         for (final MethodInvocation methodInvocation : methodInvocations) {
             if (methodInvocation.getMethodInvocations().size() > 0) {
-                final PrinterService printerService = new PrinterService(methodInvocation.getType(), methodInvocation.getMethod());
-                printerService.print(methodInvocation.getMethodInvocations(), nextIndentationLevel);
+                final ConsoleService consoleService = new ConsoleService(methodInvocation.getType(), methodInvocation.getMethod());
+                consoleService.print(methodInvocation.getMethodInvocations(), nextIndentationLevel);
             } else {
                 System.out.println(tabs + methodInvocation.getType() + "::" + methodInvocation.getMethod());
             }

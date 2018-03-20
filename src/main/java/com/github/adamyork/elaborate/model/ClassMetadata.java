@@ -1,4 +1,3 @@
-
 package com.github.adamyork.elaborate.model;
 
 import java.util.List;
@@ -7,7 +6,6 @@ import java.util.List;
  * Created by Adam York on 3/12/2018.
  * Copyright 2018
  */
-@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
 public class ClassMetadata {
 
     private final String className;
@@ -16,13 +14,12 @@ public class ClassMetadata {
     private final boolean isInterface;
     private final List<String> interfaces;
 
-
-    public ClassMetadata(final String className, final String classContent, final String superClass, final boolean isInterface, final List<String> interfaces) {
-        this.className = className;
-        this.classContent = classContent;
-        this.superClass = superClass;
-        this.isInterface = isInterface;
-        this.interfaces = interfaces;
+    private ClassMetadata(final Builder builder) {
+        this.className = builder.className;
+        this.classContent = builder.classContent;
+        this.superClass = builder.superClass;
+        this.isInterface = builder.isInterface;
+        this.interfaces = builder.interfaces;
     }
 
     public String getClassName() {
@@ -43,5 +40,56 @@ public class ClassMetadata {
 
     public List<String> getInterfaces() {
         return interfaces;
+    }
+
+    public static class Builder {
+
+        private String className;
+        private String classContent;
+        private String superClass;
+        private boolean isInterface;
+        private List<String> interfaces;
+
+        public Builder(final String className,
+                       final String classContent,
+                       final String superClass,
+                       final boolean isInterface,
+                       final List<String> interfaces) {
+            this.className = className;
+            this.classContent = classContent;
+            this.superClass = superClass;
+            this.isInterface = isInterface;
+            this.interfaces = interfaces;
+        }
+
+        public Builder className(final String className) {
+            this.className = className;
+            return this;
+        }
+
+        public Builder classContent(final String classContent) {
+            this.classContent = classContent;
+            return this;
+        }
+
+        public Builder superClass(final String superClass) {
+            this.superClass = superClass;
+            return this;
+        }
+
+        public Builder isInterface(final boolean isInterface) {
+            this.isInterface = isInterface;
+            return this;
+        }
+
+        public Builder interfaces(final List<String> interfaces) {
+            this.interfaces = interfaces;
+            return this;
+        }
+
+        public ClassMetadata build() {
+            return new ClassMetadata(this);
+        }
+
     }
 }

@@ -1,17 +1,12 @@
 package com.github.adamyork.elaborate;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.adamyork.elaborate.model.Config;
 import com.github.adamyork.elaborate.model.MethodInvocation;
 import com.github.adamyork.elaborate.model.WriterMemo;
-import com.github.adamyork.elaborate.service.PrinterService;
-import com.github.adamyork.elaborate.service.WriterService;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.DefaultParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
+import com.github.adamyork.elaborate.service.ConsoleService;
+import com.github.adamyork.elaborate.service.TextService;
+import org.apache.commons.cli.*;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -62,13 +57,13 @@ public class Main {
 
         final Optional<String> outputFilePath = Optional.ofNullable(config.getOutput());
         if (outputFilePath.isPresent()) {
-            final WriterService writerService = new WriterService(className, methodName, outputFilePath.get());
-            writerService.write(methodInvocations, 0, new WriterMemo(""));
+            final TextService textService = new TextService(className, methodName, outputFilePath.get());
+            textService.write(methodInvocations, 0, new WriterMemo.Builder("").build());
             System.exit(0);
         }
 
-        final PrinterService printerService = new PrinterService(className, methodName);
-        printerService.print(methodInvocations, 0);
+        final ConsoleService consoleService = new ConsoleService(className, methodName);
+        consoleService.print(methodInvocations, 0);
         System.exit(0);
     }
 
