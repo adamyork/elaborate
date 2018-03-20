@@ -38,7 +38,7 @@ public class TextService {
     private WriterMemo build(final List<MethodInvocation> methodInvocations, final int indentationLevel, final WriterMemo writerMemo) {
         String output = writerMemo.getOutput();
         String tabs = StringUtils.repeat("\t", indentationLevel);
-        output += tabs + className + "::" + methodName + " calls\n";
+        output += tabs + normalizeObjectCreation(className, methodName, " calls");
         final int nextIndentationLevel = indentationLevel + 1;
         tabs = StringUtils.repeat("\t", indentationLevel + 1);
         for (final MethodInvocation methodInvocation : methodInvocations) {
@@ -47,13 +47,17 @@ public class TextService {
                 final WriterMemo nextMemo = new WriterMemo.Builder(output).build();
                 output = textService.build(methodInvocation.getMethodInvocations(), nextIndentationLevel, nextMemo).getOutput();
             } else {
-                String nextCall = methodInvocation.getType() + "::" + methodInvocation.getMethod() + "\n";
-                if (nextCall.contains("::\"<init>\"")) {
-                    nextCall = "new " + nextCall.replace("::\"<init>\"", "");
-                }
-                output += tabs + nextCall;
+                output += tabs + normalizeObjectCreation(methodInvocation.getType(), methodInvocation.getMethod(), "");
             }
         }
         return new WriterMemo.Builder(output).build();
+    }
+
+    private String normalizeObjectCreation(final String className, final String methodName, final String postFix) {
+        String nextCall = className + "::" + methodName + postFix + "\n";
+        if (nextCall.contains("::\"<init>\"")) {
+            nextCall = "new " + nextCall.replace("::\"<init>\"", "");
+        }
+        return nextCall;
     }
 }

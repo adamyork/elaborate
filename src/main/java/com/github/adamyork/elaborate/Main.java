@@ -6,7 +6,14 @@ import com.github.adamyork.elaborate.model.MethodInvocation;
 import com.github.adamyork.elaborate.model.WriterMemo;
 import com.github.adamyork.elaborate.service.ConsoleService;
 import com.github.adamyork.elaborate.service.TextService;
-import org.apache.commons.cli.*;
+import com.github.adamyork.elaborate.service.UMLService;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.DefaultParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -55,9 +62,15 @@ public class Main {
                 includes, excludes, implicitMethods);
         final List<MethodInvocation> methodInvocations = elaborator.run();
 
-        final Optional<String> outputFilePath = Optional.ofNullable(config.getOutput());
-        if (outputFilePath.isPresent()) {
-            final TextService textService = new TextService(className, methodName, outputFilePath.get());
+        final Optional<String> outputFilePathOptional = Optional.ofNullable(config.getOutput());
+        if (outputFilePathOptional.isPresent()) {
+            final String outputFilePath = outputFilePathOptional.get();
+            if (outputFilePath.contains(".svg")) {
+                final UMLService umlService = new UMLService(className, methodName, outputFilePath);
+                umlService.write(methodInvocations);
+                System.exit(0);
+            }
+            final TextService textService = new TextService(className, methodName, outputFilePath);
             textService.write(methodInvocations, 0, new WriterMemo.Builder("").build());
             System.exit(0);
         }
