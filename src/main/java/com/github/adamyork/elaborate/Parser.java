@@ -8,10 +8,19 @@ import com.github.adamyork.elaborate.model.ClassMetadata;
 import org.apache.commons.io.IOUtils;
 import org.jooq.lambda.Unchecked;
 
-import java.io.*;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.PrintStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Enumeration;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Optional;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.regex.Matcher;
@@ -31,7 +40,9 @@ public class Parser {
             final JarEntry entry = entries.nextElement();
             if (entry.getName().contains(".class")) {
                 final String trimmed = entry.getName().replace("WEB-INF/classes/", "");
-                final String className = trimmed.replace("/", ".").replace(".class", "");
+                final String noSlashes = trimmed.replace("/", ".");
+                final int lastIndexOfClass = noSlashes.lastIndexOf(".class");
+                final String className = noSlashes.substring(0, lastIndexOfClass);
                 final InputStream in = Unchecked.function(f -> jarFile.getInputStream(entry)).apply(null);
                 final File tempFile = Unchecked.function(f -> File.createTempFile("tmp", ".class")).apply(null);
                 tempFile.deleteOnExit();

@@ -56,15 +56,8 @@ public class UMLService {
             final String nextId = id + "D" + i;
             final String componentString = "component " + nextId + " [";
             final String classNameString = invocation.getType();
-            //TODO shouldn't be unknown class name
-            String packageSubstring = "Unknown";
-            String classNameSubstring = "Unknown";
-            try {
-                packageSubstring = classNameString.substring(0, classNameString.lastIndexOf("."));
-                classNameSubstring = classNameString.substring(classNameString.lastIndexOf(".") + 1);
-            } catch (IndexOutOfBoundsException ex) {
-                System.out.print("");
-            }
+            final String packageSubstring = classNameString.substring(0, classNameString.lastIndexOf("."));
+            final String classNameSubstring = classNameString.substring(classNameString.lastIndexOf(".") + 1);
             final String noteString = "note top of " + nextId + " : " + packageSubstring + "\n";
             final String arrow = id + "-->" + nextId + "\n";
             output += componentString + classNameSubstring + "\n" + invocation.getMethod().replace("\"<init>\"", "new") + "]\n" + noteString + arrow + build(invocation.getMethodInvocations(), nextId);

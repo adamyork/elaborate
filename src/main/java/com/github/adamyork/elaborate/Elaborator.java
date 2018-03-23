@@ -66,7 +66,7 @@ public class Elaborator {
                     .replace(";", ",");
             final List<String> individualArguments = List.of(replaced.split(","));
             final String zzz = individualArguments.stream().map(arg -> {
-                return arg + ".*";
+                return ".*" + arg + ".*";
             }).collect(Collectors.joining(","));
             pattern = Pattern.compile(methodNameReference + "\\(" + zzz + "\\);");
         }
@@ -87,11 +87,12 @@ public class Elaborator {
                     final List<String> lines = List.of(methodBlock.split("\n"));
                     final List<String> filtered = lines.stream()
                             .filter(line -> line.contains("invokevirtual") || line.contains("invokeinterface")
-                                    || line.contains("invokestatic") || line.contains("invokespecial"))
-                            .map(line -> line.replaceAll("^.*invokevirtual.*Method", ""))
-                            .map(line -> line.replaceAll("^.*invokeinterface.*Method", ""))
-                            .map(line -> line.replaceAll("^.*invokestatic.*Method", ""))
-                            .map(line -> line.replaceAll("^.*invokespecial.*Method", ""))
+                                    || line.contains("invokestatic") || line.contains("invokespecial") || line.contains("invokedynamic"))
+                            .map(line -> line.replaceAll("^.*invokevirtual.*//Method", ""))
+                            .map(line -> line.replaceAll("^.*invokeinterface.*//InterfaceMethod", ""))
+                            .map(line -> line.replaceAll("^.*invokestatic.*//Method", ""))
+                            .map(line -> line.replaceAll("^.*invokespecial.*//Method", ""))
+                            .map(line -> line.replaceAll("^.*invokedynamic.*//InvokeDynamic#[0-9]+:", "a/dynamic/pkg/Lamda."))
                             .filter(line -> {
                                 final String normalized = line.replace("/", ".").split(":")[0];
                                 return excludes.stream().noneMatch(exclude -> {
@@ -103,7 +104,8 @@ public class Elaborator {
                             .collect(Collectors.toList());
                     System.out.println("found " + filtered.size() + " invocations");
                     final List<MethodInvocation> invocs = filtered.stream().map(line -> {
-                        final String[] parts = line.split(":\\(");
+                        final String normalizedLine = line.replace("\"[L", "").replace(";\"", "");
+                        final String[] parts = normalizedLine.split(":\\(");
                         final String methodReference = parts[0];
                         final String right = parts[1];
                         final String[] argumentsParts = right.split(";\\)|;Z\\)");
