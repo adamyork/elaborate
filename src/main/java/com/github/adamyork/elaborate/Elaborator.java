@@ -85,14 +85,59 @@ public class Elaborator {
                 if (matcher3.find()) {
                     final String methodBlock = found.substring(0, matcher3.end());
                     final List<String> lines = List.of(methodBlock.split("\n"));
-                    final List<String> filtered = lines.stream()
+                    final List<String> linesWithDynamicHoisted = lines.stream()
+                            .map(line -> {
+                                final List<String> referenceLines = new ArrayList<>();
+                                final Pattern lambdaRefPattern = Pattern.compile("^.*invokedynamic.*//InvokeDynamic#([0-9]+):");
+                                final Matcher lambdaRefMatcher = lambdaRefPattern.matcher(line);
+                                if (lambdaRefMatcher.find()) {
+                                    final String lambdaRef = lambdaRefMatcher.group(1);
+                                    final Pattern lambdaReplacementPattern = Pattern.compile(".*lambda\\$.*\\$" + lambdaRef);
+                                    final Matcher lambdaReplacementMatcher = lambdaReplacementPattern.matcher(classMetadata.getClassContent());
+                                    if (lambdaReplacementMatcher.find()) {
+                                        final String lambdaStartAndEof = classMetadata.getClassContent().substring(lambdaReplacementMatcher.start());
+                                        final Matcher lambdaRefContentMatcher = pattern2.matcher(lambdaStartAndEof);
+                                        if (lambdaRefContentMatcher.find()) {
+                                            final String lambdaRefContent = lambdaRefContentMatcher.group();
+                                            Pattern lambdaRefContentPattern = Pattern.compile("return$", Pattern.MULTILINE);
+                                            if (System.getProperty("os.name").toLowerCase().contains("win")) {
+                                                lambdaRefContentPattern = Pattern.compile("return\\s", Pattern.MULTILINE);
+                                            }
+                                            final Matcher lambdaRefContentBody = lambdaRefContentPattern.matcher(lambdaRefContent);
+                                            if (lambdaRefContentBody.find()) {
+                                                final String lambdaRefMethodBlock = lambdaRefContent.substring(0, lambdaRefContentBody.end());
+                                                final List<String> lambdaRefMethodBlockLines = List.of(lambdaRefMethodBlock.split("\n"));
+                                                referenceLines.addAll(lambdaRefMethodBlockLines);
+                                            }
+                                        }
+                                    } else {
+                                        referenceLines.add(line);
+                                    }
+                                } else {
+                                    referenceLines.add(line);
+                                }
+                                return referenceLines;
+                            })
+                            .flatMap(List::stream)
+                            .collect(Collectors.toList());
+                    final List<String> filtered = linesWithDynamicHoisted.stream()
                             .filter(line -> line.contains("invokevirtual") || line.contains("invokeinterface")
                                     || line.contains("invokestatic") || line.contains("invokespecial") || line.contains("invokedynamic"))
                             .map(line -> line.replaceAll("^.*invokevirtual.*//Method", ""))
                             .map(line -> line.replaceAll("^.*invokeinterface.*//InterfaceMethod", ""))
                             .map(line -> line.replaceAll("^.*invokestatic.*//Method", ""))
+                            .map(line -> line.replaceAll("^.*invokestatic.*//InterfaceMethod", ""))
                             .map(line -> line.replaceAll("^.*invokespecial.*//Method", ""))
                             .map(line -> line.replaceAll("^.*invokedynamic.*//InvokeDynamic#[0-9]+:", "a/dynamic/pkg/Lamda."))
+                            .filter(line -> {
+                                try {
+                                    final String left = line.split(":")[0];
+                                    final String selfInvocation = left.split("\\.")[1];
+                                    return implicitMethod.stream().noneMatch(include -> include.equals(selfInvocation));
+                                } catch (final IndexOutOfBoundsException exception) {
+                                    return true;
+                                }
+                            })
                             .filter(line -> {
                                 final String normalized = line.replace("/", ".").split(":")[0];
                                 return excludes.stream().noneMatch(exclude -> {
@@ -145,7 +190,7 @@ public class Elaborator {
                                 if (methodInvocation.getMethod().contains("<init>")) {
                                     final List<MethodInvocation> impliedInvocations = implicitMethod.stream().map(method -> {
                                         final Optional<ClassMetadata> newObjectClassMetadata = classMetadataList.stream().filter(metadata -> {
-                                            return metadata.getClassName().contains(methodInvocation.getType());
+                                            return metadata.getClassName().equals(methodInvocation.getType());
                                         }).findFirst();
                                         if (newObjectClassMetadata.isPresent()) {
                                             return findInnerCallsInMethod(newObjectClassMetadata.get(), classMetadataList, method, "");

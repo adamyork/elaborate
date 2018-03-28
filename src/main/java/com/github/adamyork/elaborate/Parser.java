@@ -8,19 +8,10 @@ import com.github.adamyork.elaborate.model.ClassMetadata;
 import org.apache.commons.io.IOUtils;
 import org.jooq.lambda.Unchecked;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.io.PrintStream;
+import java.io.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Enumeration;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.regex.Matcher;
@@ -90,7 +81,7 @@ public class Parser {
                     true, charset.name())).apply(null);
             final PrintStream errorStream = Unchecked.function(t -> new PrintStream(errorByteArrayStream,
                     true, charset.name())).apply(null);
-            toolProvider.run(contentsStream, errorStream, "-c", String.valueOf(file));
+            toolProvider.run(contentsStream, errorStream, "-c", "-p", String.valueOf(file));
             final String content = new String(contentByteArrayStream.toByteArray(), charset);
             //TODO probably should handle error here
             final String error = new String(errorByteArrayStream.toByteArray(), charset);
@@ -113,7 +104,19 @@ public class Parser {
         if (isInterfaceMatcher.find()) {
             isInterface = true;
         }
-        final Pattern implementationOfPattern = Pattern.compile("class.*" + normalizedClassName + "implements.*\\{");
+        final Pattern superClassPattern = Pattern.compile("class.*" + normalizedClassName + "extends.*\\{");
+        final Matcher superClassMatcher = superClassPattern.matcher(content);
+        String superClass = "";
+        if (superClassMatcher.find()) {
+            final String superClassGroup = superClassMatcher.group();
+            final String superClassMatches = superClassGroup.substring(0, superClassGroup.length() - 1);
+            String superClassDeclaration = superClassMatches.split("extends")[1];
+            if (superClassDeclaration.contains("implements")) {
+                superClassDeclaration = superClassDeclaration.split("implements")[0];
+            }
+            superClass = buildStringsList(superClassDeclaration).get(0);
+        }
+        final Pattern implementationOfPattern = Pattern.compile("class.*" + normalizedClassName + ".*implements.*\\{");
         final Matcher implementationOfMatcher = implementationOfPattern.matcher(content);
         final List<String> interfaces = new ArrayList<>();
         if (implementationOfMatcher.find()) {
@@ -122,14 +125,7 @@ public class Parser {
             final List<String> interfaceStrings = buildStringsList(matches.split("implements")[1]);
             interfaces.addAll(interfaceStrings);
         }
-        final Pattern superClassPattern = Pattern.compile("class.*" + normalizedClassName + "extends.*\\{");
-        final Matcher superClassMatcher = superClassPattern.matcher(content);
-        String superClass = "";
-        if (superClassMatcher.find()) {
-            final String superClassGroup = superClassMatcher.group();
-            final String superClassMatches = superClassGroup.substring(0, superClassGroup.length() - 1);
-            superClass = buildStringsList(superClassMatches.split("extends")[1]).get(0);
-        }
+
         return new ClassMetadata.Builder(className, content, superClass, isInterface, interfaces).build();
     }
 
