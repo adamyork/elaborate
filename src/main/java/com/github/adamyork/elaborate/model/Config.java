@@ -20,6 +20,7 @@ public class Config {
     private List<String> includes;
     private List<String> excludes;
     private List<String> implicitMethods;
+    private List<String> whiteList;
 
     private Config(final Builder builder) {
         this.input = builder.input;
@@ -29,6 +30,7 @@ public class Config {
         this.includes = builder.includes;
         this.excludes = builder.excludes;
         this.implicitMethods = builder.implicitMethods;
+        this.whiteList = builder.whiteList;
     }
 
     public String getInput() {
@@ -59,6 +61,10 @@ public class Config {
         return implicitMethods;
     }
 
+    public List<String> getWhiteList() {
+        return whiteList;
+    }
+
     @JsonPOJOBuilder
     public static class Builder {
 
@@ -69,6 +75,7 @@ public class Config {
         private List<String> includes;
         private List<String> excludes;
         private List<String> implicitMethods;
+        private List<String> whiteList;
 
         public Builder(@JsonProperty("input") final String input,
                        @JsonProperty("entryClass") final String entryClass,
@@ -76,7 +83,8 @@ public class Config {
                        @JsonProperty("output") final String output,
                        @JsonProperty("includes") final List<String> includes,
                        @JsonProperty("excludes") final List<String> excludes,
-                       @JsonProperty("implicitMethods") final List<String> implicitMethods) {
+                       @JsonProperty("implicitMethods") final List<String> implicitMethods,
+                       @JsonProperty("whiteList") final List<String> whiteList) {
             this.input = input;
             this.entryClass = entryClass;
             this.entryMethod = entryMethod;
@@ -84,6 +92,7 @@ public class Config {
             this.includes = includes;
             this.excludes = excludes;
             this.implicitMethods = implicitMethods;
+            this.whiteList = whiteList;
         }
 
         public Builder input(final String input) {
@@ -118,6 +127,11 @@ public class Config {
 
         public Builder implicitMethods(final List<String> implicitMethods) {
             this.implicitMethods = implicitMethods;
+            return this;
+        }
+
+        public Builder whiteList(final List<String> whiteList) {
+            this.whiteList = whiteList;
             return this;
         }
 

@@ -7,6 +7,7 @@ import com.github.adamyork.elaborate.model.WriterMemo;
 import com.github.adamyork.elaborate.service.ConsoleService;
 import com.github.adamyork.elaborate.service.TextService;
 import com.github.adamyork.elaborate.service.UMLService;
+import com.github.adamyork.elaborate.service.WhiteListBranches;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
@@ -57,26 +58,28 @@ public class Main {
         final List<String> includes = config.getIncludes();
         final List<String> excludes = config.getExcludes();
         final List<String> implicitMethods = config.getImplicitMethods();
+        final Optional<List<String>> maybeWhiteList = Optional.ofNullable(config.getWhiteList());
 
         final Elaborator elaborator = new Elaborator(inputPath, className, methodName,
                 includes, excludes, implicitMethods);
         final List<MethodInvocation> methodInvocations = elaborator.run();
+        final List<MethodInvocation> maybeFiltered = WhiteListBranches.manageList(methodInvocations, maybeWhiteList, className, methodName);
 
         final Optional<String> outputFilePathOptional = Optional.ofNullable(config.getOutput());
         if (outputFilePathOptional.isPresent()) {
             final String outputFilePath = outputFilePathOptional.get();
             if (outputFilePath.contains(".svg")) {
                 final UMLService umlService = new UMLService(className, methodName, outputFilePath);
-                umlService.write(methodInvocations);
+                umlService.write(maybeFiltered);
                 System.exit(0);
             }
             final TextService textService = new TextService(className, methodName, outputFilePath);
-            textService.write(methodInvocations, 0, new WriterMemo.Builder("").build());
+            textService.write(maybeFiltered, 0, new WriterMemo.Builder("").build());
             System.exit(0);
         }
 
         final ConsoleService consoleService = new ConsoleService(className, methodName);
-        consoleService.print(methodInvocations, 0);
+        consoleService.print(maybeFiltered, 0);
         System.exit(0);
     }
 
