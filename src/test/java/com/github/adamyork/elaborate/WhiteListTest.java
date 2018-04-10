@@ -1,7 +1,7 @@
 package com.github.adamyork.elaborate;
 
 import com.github.adamyork.elaborate.model.MethodInvocation;
-import com.github.adamyork.elaborate.service.WhiteListBranches;
+import com.github.adamyork.elaborate.service.WhiteListService;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -43,7 +43,7 @@ public class WhiteListTest {
 
         final List<String> whitelist = new ArrayList<>();
         whitelist.add("com.pkg.InnerAAA::innerAAAMethod");
-        final Optional<MethodInvocation> filtered = WhiteListBranches.filter(rootInvocation, whitelist);
+        final Optional<MethodInvocation> filtered = WhiteListService.filter(rootInvocation, whitelist);
 
         assertTrue(filtered.get().getMethodInvocations().get(0).getMethodInvocations().size() == 1);
         assertTrue(filtered.get().getMethodInvocations().get(1).getMethodInvocations().size() == 1);

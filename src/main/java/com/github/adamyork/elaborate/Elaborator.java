@@ -62,6 +62,7 @@ public class Elaborator {
         Pattern pattern = Pattern.compile(methodNameReference + "\\(.*\\);");
         if (!methodArgsReference.isEmpty()) {
             final String replaced = methodArgsReference.replace("/", ".")
+                    .replace(";IL", ",int,")
                     .replace(";L", ",")
                     .replace(";", ",");
             final List<String> individualArguments = List.of(replaced.split(","));
@@ -133,7 +134,11 @@ public class Elaborator {
                                 try {
                                     final String left = line.split(":")[0];
                                     final String selfInvocation = left.split("\\.")[1];
-                                    return implicitMethod.stream().noneMatch(include -> include.equals(selfInvocation));
+                                    final boolean selfInvoc = implicitMethod.stream().noneMatch(include -> include.equals(selfInvocation));
+                                    if (selfInvoc == false) {
+                                        System.out.println("filtered because self invoc " + line);
+                                    }
+                                    return selfInvoc;
                                 } catch (final IndexOutOfBoundsException exception) {
                                     return true;
                                 }

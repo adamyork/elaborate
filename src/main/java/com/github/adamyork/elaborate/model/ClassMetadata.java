@@ -62,31 +62,6 @@ public class ClassMetadata {
             this.interfaces = interfaces;
         }
 
-        public Builder className(final String className) {
-            this.className = className;
-            return this;
-        }
-
-        public Builder classContent(final String classContent) {
-            this.classContent = classContent;
-            return this;
-        }
-
-        public Builder superClass(final String superClass) {
-            this.superClass = superClass;
-            return this;
-        }
-
-        public Builder isInterface(final boolean isInterface) {
-            this.isInterface = isInterface;
-            return this;
-        }
-
-        public Builder interfaces(final List<String> interfaces) {
-            this.interfaces = interfaces;
-            return this;
-        }
-
         public ClassMetadata build() {
             return new ClassMetadata(this);
         }

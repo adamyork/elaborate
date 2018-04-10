@@ -24,11 +24,6 @@ public class WriterMemo {
             this.output = output;
         }
 
-        public Builder output(final String output) {
-            this.output = output;
-            return this;
-        }
-
         public WriterMemo build() {
             return new WriterMemo(this);
         }

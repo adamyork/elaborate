@@ -95,46 +95,6 @@ public class Config {
             this.whiteList = whiteList;
         }
 
-        public Builder input(final String input) {
-            this.input = input;
-            return this;
-        }
-
-        public Builder entryClass(final String entryClass) {
-            this.entryClass = entryClass;
-            return this;
-        }
-
-        public Builder entryMethod(final String entryMethod) {
-            this.entryMethod = entryMethod;
-            return this;
-        }
-
-        public Builder output(final String output) {
-            this.output = output;
-            return this;
-        }
-
-        public Builder includes(final List<String> includes) {
-            this.includes = includes;
-            return this;
-        }
-
-        public Builder excludes(final List<String> excludes) {
-            this.excludes = excludes;
-            return this;
-        }
-
-        public Builder implicitMethods(final List<String> implicitMethods) {
-            this.implicitMethods = implicitMethods;
-            return this;
-        }
-
-        public Builder whiteList(final List<String> whiteList) {
-            this.whiteList = whiteList;
-            return this;
-        }
-
         public Config build() {
             return new Config(this);
         }

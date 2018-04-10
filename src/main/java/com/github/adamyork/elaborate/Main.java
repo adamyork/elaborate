@@ -7,7 +7,7 @@ import com.github.adamyork.elaborate.model.WriterMemo;
 import com.github.adamyork.elaborate.service.ConsoleService;
 import com.github.adamyork.elaborate.service.TextService;
 import com.github.adamyork.elaborate.service.UMLService;
-import com.github.adamyork.elaborate.service.WhiteListBranches;
+import com.github.adamyork.elaborate.service.WhiteListService;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
@@ -63,7 +63,7 @@ public class Main {
         final Elaborator elaborator = new Elaborator(inputPath, className, methodName,
                 includes, excludes, implicitMethods);
         final List<MethodInvocation> methodInvocations = elaborator.run();
-        final List<MethodInvocation> maybeFiltered = WhiteListBranches.manageList(methodInvocations, maybeWhiteList, className, methodName);
+        final List<MethodInvocation> maybeFiltered = WhiteListService.manageList(methodInvocations, maybeWhiteList, className, methodName);
 
         final Optional<String> outputFilePathOptional = Optional.ofNullable(config.getOutput());
         if (outputFilePathOptional.isPresent()) {

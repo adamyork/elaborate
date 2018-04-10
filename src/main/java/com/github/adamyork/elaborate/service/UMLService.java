@@ -14,6 +14,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class UMLService {
 
@@ -38,31 +40,37 @@ public class UMLService {
         final String endString = "@enduml";
         final String output = startString + ltrString + componentString + classNameSubstring + "\n" + methodName + "]\n" + noteString + inner + endString;
         final SourceStringReader reader = new SourceStringReader(output);
-        final ByteArrayOutputStream os = new ByteArrayOutputStream();
-        // Write the first image to "os"
-        reader.generateImage(os, new FileFormatOption(FileFormat.SVG));
+        final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        reader.generateImage(outputStream, new FileFormatOption(FileFormat.SVG));
         final Path file = Paths.get(outputFilePath);
-        Unchecked.function(f -> Files.write(file, Collections.singletonList(os.toString()), Charset.forName("UTF-8"))).apply(null);
-        os.close();
+        Unchecked.function(f -> Files.write(file, Collections.singletonList(outputStream.toString()), Charset.forName("UTF-8"))).apply(null);
+        outputStream.close();
     }
 
     private String build(final List<MethodInvocation> methodInvocations, final String id) {
         if (methodInvocations.isEmpty()) {
             return "";
         }
-        String output = "";
-        for (int i = 0; i < methodInvocations.size(); i++) {
-            final MethodInvocation invocation = methodInvocations.get(i);
-            final String nextId = id + "D" + i;
-            final String componentString = "component " + nextId + " [";
-            final String classNameString = invocation.getType();
-            final String packageSubstring = classNameString.substring(0, classNameString.lastIndexOf("."));
-            final String classNameSubstring = classNameString.substring(classNameString.lastIndexOf(".") + 1);
-            final String noteString = "note top of " + nextId + " : " + packageSubstring + "\n";
-            final String arrow = id + "-->" + nextId + "\n";
-            output += componentString + classNameSubstring + "\n" + invocation.getMethod().replace("\"<init>\"", "new") + "]\n" + noteString + arrow + build(invocation.getMethodInvocations(), nextId);
-        }
-        return output;
+        return IntStream.range(0, methodInvocations.size())
+                .mapToObj(index -> buildUmlString(methodInvocations.get(index), id, index))
+                .collect(Collectors.joining());
+    }
+
+    private String buildUmlString(final MethodInvocation methodInvocation, final String id, final int index) {
+        final StringBuilder output = new StringBuilder();
+        final String nextId = id + "D" + index;
+        final String componentString = "component " + nextId + " [";
+        final String classNameString = methodInvocation.getType();
+        final String packageSubstring = classNameString.substring(0, classNameString.lastIndexOf("."));
+        final String classNameSubstring = classNameString.substring(classNameString.lastIndexOf(".") + 1);
+        final String noteString = "note top of " + nextId + " : " + packageSubstring + "\n";
+        final String arrow = id + "-->" + nextId + "\n";
+        output.append(componentString)
+                .append(classNameSubstring).append("\n")
+                .append(methodInvocation.getMethod().replace("\"<init>\"", "new"))
+                .append("]\n").append(noteString).append(arrow)
+                .append(build(methodInvocation.getMethodInvocations(), nextId));
+        return output.toString();
     }
 
 }

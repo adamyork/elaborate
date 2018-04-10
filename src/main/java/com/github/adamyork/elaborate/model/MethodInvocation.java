@@ -63,26 +63,6 @@ public class MethodInvocation {
             this.methodInvocations = methodInvocations;
         }
 
-        public Builder type(final String type) {
-            this.type = type;
-            return this;
-        }
-
-        public Builder method(final String method) {
-            this.method = method;
-            return this;
-        }
-
-        public Builder arguments(final String arguments) {
-            this.arguments = arguments;
-            return this;
-        }
-
-        public Builder methodInvocations(final List<MethodInvocation> methodInvocations) {
-            this.methodInvocations = methodInvocations;
-            return this;
-        }
-
         public MethodInvocation build() {
             return new MethodInvocation(this);
         }

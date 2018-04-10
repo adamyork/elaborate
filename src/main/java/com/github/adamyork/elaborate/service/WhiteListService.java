@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-public class WhiteListBranches {
+public class WhiteListService {
 
     public static List<MethodInvocation> manageList(final List<MethodInvocation> methodInvocations,
                                                     final Optional<List<String>> maybeWhiteList,
@@ -29,7 +29,7 @@ public class WhiteListBranches {
             return Optional.of(node);
         }
         final List<MethodInvocation> filtered = node.getMethodInvocations().stream()
-                .map(child -> WhiteListBranches.filter(child, matchers))
+                .map(child -> WhiteListService.filter(child, matchers))
                 .filter(Optional::isPresent)
                 .map(Optional::get)
                 .collect(Collectors.toList());
