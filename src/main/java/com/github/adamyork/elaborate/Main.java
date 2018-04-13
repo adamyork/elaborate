@@ -63,7 +63,9 @@ public class Main {
         final Elaborator elaborator = new Elaborator(inputPath, className, methodName,
                 includes, excludes, implicitMethods);
         final List<MethodInvocation> methodInvocations = elaborator.run();
-        final List<MethodInvocation> maybeFiltered = WhiteListService.manageList(methodInvocations, maybeWhiteList, className, methodName);
+        final WhiteListService whiteListService = new WhiteListService();
+        final List<MethodInvocation> maybeFiltered = whiteListService.manageList(methodInvocations, maybeWhiteList,
+                className, methodName);
 
         final Optional<String> outputFilePathOptional = Optional.ofNullable(config.getOutput());
         if (outputFilePathOptional.isPresent()) {
