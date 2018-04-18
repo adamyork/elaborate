@@ -13,7 +13,7 @@ public class WhiteListService {
                                              final Optional<List<String>> maybeWhiteList,
                                              final String className,
                                              final String methodName) {
-        return maybeWhiteList.map(whiteList -> probablyFilterList(methodInvocations, maybeWhiteList.get(), className, methodName))
+        return maybeWhiteList.map(whiteList -> probablyFilterList(methodInvocations, whiteList, className, methodName))
                 .or(() -> Optional.of(methodInvocations))
                 .get();
     }

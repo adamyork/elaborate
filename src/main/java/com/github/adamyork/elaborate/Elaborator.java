@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
  * Created by Adam York on 3/9/2018.
  * Copyright 2018
  */
-@SuppressWarnings("WeakerAccess")
+@SuppressWarnings({"WeakerAccess", "OptionalUsedAsFieldOrParameterType"})
 public class Elaborator {
 
     private final String inputPath;
@@ -47,182 +47,37 @@ public class Elaborator {
         final Optional<ClassMetadata> targetMetadata = classMetadataList.stream()
                 .filter(metadata -> metadata.getClassName().equals(className))
                 .findFirst();
-        if (targetMetadata.isPresent()) {
-            return findInnerCallsInMethod(targetMetadata.get(), classMetadataList, methodName, "");
-        } else {
-            return new ArrayList<>();
-        }
+        return targetMetadata.map(metadata -> findInvocationsInMethod(metadata,
+                classMetadataList, methodName, ""))
+                .or(() -> Optional.of(new ArrayList<>()))
+                .get();
     }
 
-    private List<MethodInvocation> findInnerCallsInMethod(final ClassMetadata classMetadata,
-                                                          final List<ClassMetadata> classMetadataList,
-                                                          final String methodNameReference,
-                                                          final String methodArgsReference) {
-        System.out.println("className " + classMetadata.getClassName() + " meth ref " + methodNameReference);
-        Pattern pattern = Pattern.compile(methodNameReference + "\\(.*\\);");
-        if (!methodArgsReference.isEmpty()) {
-            final String replaced = methodArgsReference.replace("/", ".")
+    private Pattern buildMethodLocatorPattern(final String methodNameReference, final Optional<String> maybeMethodArgs) {
+        return maybeMethodArgs.map(methodArgs -> {
+            final String replaced = methodArgs.replace("/", ".")
                     .replace(";IL", ",int,")
                     .replace(";L", ",")
                     .replace(";", ",");
-            final List<String> individualArguments = List.of(replaced.split(","));
-            final String zzz = individualArguments.stream().map(arg -> {
-                return ".*" + arg + ".*";
-            }).collect(Collectors.joining(","));
-            pattern = Pattern.compile(methodNameReference + "\\(" + zzz + "\\);");
+            final List<String> allArguments = List.of(replaced.split(","));
+            final String normalizedArguments = allArguments.stream()
+                    .map(arg -> ".*" + arg + ".*")
+                    .collect(Collectors.joining(","));
+            return Pattern.compile(methodNameReference + "\\(" + normalizedArguments + "\\);");
+        }).or(() -> Optional.of(Pattern.compile(methodNameReference + "\\(.*\\);"))).get();
+    }
+
+    private Pattern buildMethodBodyEndLocatorPattern() {
+        if (System.getProperty("os.name").toLowerCase().contains("win")) {
+            return Pattern.compile("return\\s", Pattern.MULTILINE);
         }
-        final Matcher matcher = pattern.matcher(classMetadata.getClassContent());
-        if (matcher.find()) {
-            final String sub = classMetadata.getClassContent().substring(matcher.start());
-            final Pattern pattern2 = Pattern.compile("(?s)Code:.*?(?=\\n\\n)|(?s)Code:.*?(?=\\n})");
-            final Matcher matcher2 = pattern2.matcher(sub);
-            if (matcher2.find()) {
-                Pattern pattern3 = Pattern.compile("return$", Pattern.MULTILINE);
-                if (System.getProperty("os.name").toLowerCase().contains("win")) {
-                    pattern3 = Pattern.compile("return\\s", Pattern.MULTILINE);
-                }
-                final String found = matcher2.group();
-                final Matcher matcher3 = pattern3.matcher(found);
-                if (matcher3.find()) {
-                    final String methodBlock = found.substring(0, matcher3.end());
-                    final List<String> lines = List.of(methodBlock.split("\n"));
-                    final List<String> linesWithDynamicHoisted = lines.stream()
-                            .map(line -> {
-                                final List<String> referenceLines = new ArrayList<>();
-                                final Pattern lambdaRefPattern = Pattern.compile("^.*invokedynamic.*//InvokeDynamic#([0-9]+):");
-                                final Matcher lambdaRefMatcher = lambdaRefPattern.matcher(line);
-                                if (lambdaRefMatcher.find()) {
-                                    final String lambdaRef = lambdaRefMatcher.group(1);
-                                    final Pattern lambdaReplacementPattern = Pattern.compile(".*lambda\\$.*\\$" + lambdaRef);
-                                    final Matcher lambdaReplacementMatcher = lambdaReplacementPattern.matcher(classMetadata.getClassContent());
-                                    if (lambdaReplacementMatcher.find()) {
-                                        final String lambdaStartAndEof = classMetadata.getClassContent().substring(lambdaReplacementMatcher.start());
-                                        final Matcher lambdaRefContentMatcher = pattern2.matcher(lambdaStartAndEof);
-                                        if (lambdaRefContentMatcher.find()) {
-                                            final String lambdaRefContent = lambdaRefContentMatcher.group();
-                                            Pattern lambdaRefContentPattern = Pattern.compile("return$", Pattern.MULTILINE);
-                                            if (System.getProperty("os.name").toLowerCase().contains("win")) {
-                                                lambdaRefContentPattern = Pattern.compile("return\\s", Pattern.MULTILINE);
-                                            }
-                                            final Matcher lambdaRefContentBody = lambdaRefContentPattern.matcher(lambdaRefContent);
-                                            if (lambdaRefContentBody.find()) {
-                                                final String lambdaRefMethodBlock = lambdaRefContent.substring(0, lambdaRefContentBody.end());
-                                                final List<String> lambdaRefMethodBlockLines = List.of(lambdaRefMethodBlock.split("\n"));
-                                                referenceLines.addAll(lambdaRefMethodBlockLines);
-                                            }
-                                        }
-                                    } else {
-                                        referenceLines.add(line);
-                                    }
-                                } else {
-                                    referenceLines.add(line);
-                                }
-                                return referenceLines;
-                            })
-                            .flatMap(List::stream)
-                            .collect(Collectors.toList());
-                    final List<String> filtered = linesWithDynamicHoisted.stream()
-                            .filter(line -> line.contains("invokevirtual") || line.contains("invokeinterface")
-                                    || line.contains("invokestatic") || line.contains("invokespecial") || line.contains("invokedynamic"))
-                            .map(line -> line.replaceAll("^.*invokevirtual.*//Method", ""))
-                            .map(line -> line.replaceAll("^.*invokeinterface.*//InterfaceMethod", ""))
-                            .map(line -> line.replaceAll("^.*invokestatic.*//Method", ""))
-                            .map(line -> line.replaceAll("^.*invokestatic.*//InterfaceMethod", ""))
-                            .map(line -> line.replaceAll("^.*invokespecial.*//Method", ""))
-                            .map(line -> line.replaceAll("^.*invokedynamic.*//InvokeDynamic#[0-9]+:", "a/dynamic/pkg/Lamda."))
-                            .filter(line -> {
-                                try {
-                                    final String left = line.split(":")[0];
-                                    final String selfInvocation = left.split("\\.")[1];
-                                    final boolean selfInvoc = implicitMethod.stream().noneMatch(include -> include.equals(selfInvocation));
-                                    if (selfInvoc == false) {
-                                        System.out.println("filtered because self invoc " + line);
-                                    }
-                                    return selfInvoc;
-                                } catch (final IndexOutOfBoundsException exception) {
-                                    return true;
-                                }
-                            })
-                            .filter(line -> {
-                                final String normalized = line.replace("/", ".").split(":")[0];
-                                return excludes.stream().noneMatch(exclude -> {
-                                    final Pattern excludePattern = Pattern.compile(exclude);
-                                    final Matcher excludeMatcher = excludePattern.matcher(normalized);
-                                    return excludeMatcher.find();
-                                });
-                            })
-                            .collect(Collectors.toList());
-                    System.out.println("found " + filtered.size() + " invocations");
-                    final List<MethodInvocation> invocs = filtered.stream().map(line -> {
-                        final String normalizedLine = line.replace("\"[L", "").replace(";\"", "");
-                        final String[] parts = normalizedLine.split(":\\(");
-                        final String methodReference = parts[0];
-                        final String right = parts[1];
-                        final String[] argumentsParts = right.split(";\\)|;Z\\)");
-                        String arguments = "";
-                        if (argumentsParts.length != 1) {
-                            arguments = argumentsParts[0].substring(1);
-                        }
-                        final String[] subParts = methodReference.split("\\.");
-                        final MethodInvocation methodInvocation;
-                        if (subParts.length == 1) {
-                            methodInvocation = new MethodInvocation.Builder(classMetadata.getClassName(), subParts[0], arguments).build();
-                        } else {
-                            final String callObjectClassName = subParts[0].replaceAll("/", ".");
-                            methodInvocation = new MethodInvocation.Builder(callObjectClassName, subParts[1], arguments).build();
-                        }
-                        final Optional<ClassMetadata> invocationClassMetadata = classMetadataList.stream()
-                                .filter(metadata -> metadata.getClassName().equals(methodInvocation.getType()))
-                                .findFirst();
-                        if (invocationClassMetadata.isPresent()) {
-                            final ClassMetadata maybeInterfaceClassMetadata = invocationClassMetadata.get();
-                            if (maybeInterfaceClassMetadata.isInterface()) {
-                                System.out.println("interface found in invocation list");
-                                final List<ClassMetadata> implementations = classMetadataList.stream().filter(metadata -> {
-                                    return metadata.getInterfaces().stream().anyMatch(impl -> {
-                                        return impl.contains(maybeInterfaceClassMetadata.getClassName());
-                                    });
-                                }).collect(Collectors.toList());
-                                final List<MethodInvocation> aggregateInvocations = implementations.stream().map(impl -> {
-                                    return findInnerCallsInMethod(impl, classMetadataList, methodInvocation.getMethod(), methodInvocation.getArguments());
-                                }).flatMap(List::stream)
-                                        .collect(Collectors.toList()).stream().map(impl -> {
-                                            return new MethodInvocation.Builder(impl.getType(), impl.getMethod(),
-                                                    impl.getArguments(), impl.getMethodInvocations()).discreet(false).build();
-                                        }).collect(Collectors.toList());
-                                return new MethodInvocation.Builder(methodInvocation.getType(), methodInvocation.getMethod(),
-                                        methodInvocation.getArguments(), aggregateInvocations).build();
-                            } else {
-                                System.out.println("no interface object in invocation list");
-                                final List<MethodInvocation> tmp = findInnerCallsInMethod(maybeInterfaceClassMetadata, classMetadataList, methodInvocation.getMethod(),
-                                        methodInvocation.getArguments());
-                                if (methodInvocation.getMethod().contains("<init>")) {
-                                    final List<MethodInvocation> impliedInvocations = implicitMethod.stream().map(method -> {
-                                        final Optional<ClassMetadata> newObjectClassMetadata = classMetadataList.stream().filter(metadata -> {
-                                            return metadata.getClassName().equals(methodInvocation.getType());
-                                        }).findFirst();
-                                        if (newObjectClassMetadata.isPresent()) {
-                                            return findInnerCallsInMethod(newObjectClassMetadata.get(), classMetadataList, method, "");
-                                        }
-                                        return null;
-                                    }).filter(Objects::nonNull)
-                                            .flatMap(List::stream)
-                                            .collect(Collectors.toList());
-                                    tmp.addAll(impliedInvocations);
-                                }
-                                return new MethodInvocation.Builder(methodInvocation.getType(), methodInvocation.getMethod(),
-                                        methodInvocation.getArguments(), tmp).build();
-                            }
-                        }
-                        return methodInvocation;
-                    }).collect(Collectors.toList());
-                    System.out.println("done processing className " + classMetadata.getClassName() + " meth ref " + methodNameReference);
-                    return invocs;
-                }
-            }
-        }
-        System.out.println("no method named " + methodNameReference + " exists on class");
-        List<MethodInvocation> maybeSuperClassInvocations = new ArrayList<>();
+        return Pattern.compile("return$", Pattern.MULTILINE);
+    }
+
+    //TODO clean up
+    private List<MethodInvocation> getSuperClassInvocations(final ClassMetadata classMetadata,
+                                                            final List<ClassMetadata> classMetadataList,
+                                                            final String methodNameReference) {
         if (!classMetadata.getSuperClass().isEmpty()) {
             System.out.println("checking super class for method");
             final Optional<ClassMetadata> superClassMetadata = classMetadataList.stream().filter(metadata -> {
@@ -235,12 +90,194 @@ public class Elaborator {
                 }
                 return metadata.getClassName().equals(className);
             }).findFirst();
-            if (superClassMetadata.isPresent()) {
-                maybeSuperClassInvocations = findInnerCallsInMethod(superClassMetadata.get(), classMetadataList, methodNameReference, "");
-                System.out.println("");
-            }
+            return superClassMetadata
+                    .map(metadata -> findInvocationsInMethod(metadata, classMetadataList, methodNameReference, ""))
+                    .or(() -> Optional.of(new ArrayList<>())).get();
         }
-        return maybeSuperClassInvocations;
+        return new ArrayList<>();
+    }
+
+    //TODO clean up
+    private List<String> mergeLambdaBodyLinesWithMethodLines(final List<String> methodBodyLines, final ClassMetadata classMetadata,
+                                                             final Pattern methodBodyLocator) {
+        return methodBodyLines.stream()
+                .map(line -> {
+                    final List<String> mergedLines = new ArrayList<>();
+                    final Pattern lambdaPattern = Pattern.compile("^.*invokedynamic.*//InvokeDynamic#([0-9]+):");
+                    final Matcher lambdaMatcher = lambdaPattern.matcher(line);
+                    if (lambdaMatcher.find()) {
+                        final String lambda = lambdaMatcher.group(1);
+                        final Pattern lambdaReplacementPattern = Pattern.compile(".*lambda\\$.*\\$" + lambda);
+                        final Matcher lambdaReplacementMatcher = lambdaReplacementPattern
+                                .matcher(classMetadata.getClassContent());
+                        if (lambdaReplacementMatcher.find()) {
+                            final String lambdaIndexToEof = classMetadata.getClassContent()
+                                    .substring(lambdaReplacementMatcher.start());
+                            final Matcher lambdaBodyMatcher = methodBodyLocator.matcher(lambdaIndexToEof);
+                            if (lambdaBodyMatcher.find()) {
+                                final String lambdaBody = lambdaBodyMatcher.group();
+                                final Pattern lambdaRefContentPattern = buildMethodBodyEndLocatorPattern();
+                                final Matcher lambdaRefContentBody = lambdaRefContentPattern.matcher(lambdaBody);
+                                if (lambdaRefContentBody.find()) {
+                                    final String lambdaRefMethodBlock = lambdaBody.substring(0,
+                                            lambdaRefContentBody.end());
+                                    final List<String> lambdaRefMethodBlockLines = List.of(lambdaRefMethodBlock
+                                            .split("\n"));
+                                    mergedLines.addAll(lambdaRefMethodBlockLines);
+                                }
+                            }
+                        } else {
+                            mergedLines.add(line);
+                        }
+                    } else {
+                        mergedLines.add(line);
+                    }
+                    return mergedLines;
+                })
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
+    }
+
+    private List<String> filterNonEssentialInternalsFromMethodLines(final List<String> methodBodyLines) {
+        return methodBodyLines.stream()
+                .filter(line -> line.contains("invokevirtual") || line.contains("invokeinterface")
+                        || line.contains("invokestatic") || line.contains("invokespecial") || line.contains("invokedynamic"))
+                .map(line -> line.replaceAll("^.*invokevirtual.*//Method", ""))
+                .map(line -> line.replaceAll("^.*invokeinterface.*//InterfaceMethod", ""))
+                .map(line -> line.replaceAll("^.*invokestatic.*//Method", ""))
+                .map(line -> line.replaceAll("^.*invokestatic.*//InterfaceMethod", ""))
+                .map(line -> line.replaceAll("^.*invokespecial.*//Method", ""))
+                .map(line -> line.replaceAll("^.*invokedynamic.*//InvokeDynamic#[0-9]+:", "a/dynamic/pkg/Lamda."))
+                .filter(line -> {
+                    try {
+                        //TODO clean up
+                        final String left = line.split(":")[0];
+                        final String selfInvocation = left.split("\\.")[1];
+                        return implicitMethod.stream().noneMatch(include -> include.equals(selfInvocation));
+                    } catch (final IndexOutOfBoundsException exception) {
+                        return true;
+                    }
+                })
+                .filter(line -> {
+                    final String normalized = line.replace("/", ".").split(":")[0];
+                    return excludes.stream().noneMatch(exclude -> {
+                        final Pattern excludePattern = Pattern.compile(exclude);
+                        final Matcher excludeMatcher = excludePattern.matcher(normalized);
+                        return excludeMatcher.find();
+                    });
+                })
+                .collect(Collectors.toList());
+    }
+
+    private List<MethodInvocation> findInvocationsInMethod(final ClassMetadata classMetadata,
+                                                           final List<ClassMetadata> classMetadataList,
+                                                           final String methodNameReference,
+                                                           final String methodArgsReference) {
+        System.out.println("finding method invocations for " + classMetadata.getClassName() + " within method" + methodNameReference);
+        final Pattern methodLocator = buildMethodLocatorPattern(methodNameReference, Optional.ofNullable(methodArgsReference));
+        final Matcher methodLocatorMatcher = methodLocator.matcher(classMetadata.getClassContent());
+
+        if (!methodLocatorMatcher.find()) {
+            System.out.println("no method named " + methodNameReference + " exists on class " + classMetadata.getClassName());
+            return getSuperClassInvocations(classMetadata, classMetadataList, methodNameReference);
+        }
+
+        final String methodIndexToEof = classMetadata.getClassContent().substring(methodLocatorMatcher.start());
+        final Pattern methodBodyLocator = Pattern.compile("(?s)Code:.*?(?=\\n\\n)|(?s)Code:.*?(?=\\n})");
+        final Matcher methodBodyMatcher = methodBodyLocator.matcher(methodIndexToEof);
+
+        if (!methodBodyMatcher.find()) {
+            System.out.println("no body found for " + methodNameReference + " on class " + classMetadata.getClassName());
+            return new ArrayList<>();
+        }
+
+        final Pattern methodBodyEndLocator = buildMethodBodyEndLocatorPattern();
+        final String methodBodyToEof = methodBodyMatcher.group();
+        final Matcher methodBodyEndMatcher = methodBodyEndLocator.matcher(methodBodyToEof);
+
+        if (!methodBodyEndMatcher.find()) {
+            System.out.println("no end of body found for " + methodNameReference + " on class " + classMetadata.getClassName());
+            return new ArrayList<>();
+        }
+
+        final String methodBody = methodBodyToEof.substring(0, methodBodyEndMatcher.end());
+        final List<String> methodBodyLines = List.of(methodBody.split("\n"));
+        final List<String> methodBodyLinesWithDynamicHoisted = mergeLambdaBodyLinesWithMethodLines(methodBodyLines,
+                classMetadata, methodBodyLocator);
+
+        final List<String> filtered = filterNonEssentialInternalsFromMethodLines(methodBodyLinesWithDynamicHoisted);
+        System.out.println("found " + filtered.size() + " invocations");
+
+        final List<MethodInvocation> invocations = filtered.stream().map(line -> {
+            final String normalizedLine = line.replace("\"[L", "").replace(";\"", "");
+            final String[] parts = normalizedLine.split(":\\(");
+            final String methodReference = parts[0];
+            final String right = parts[1];
+            final String[] argumentsParts = right.split(";\\)|;Z\\)");
+            String arguments = "";
+            if (argumentsParts.length != 1) {
+                arguments = argumentsParts[0].substring(1);
+            }
+            final String[] subParts = methodReference.split("\\.");
+            final MethodInvocation methodInvocation;
+            if (subParts.length == 1) {
+                methodInvocation = new MethodInvocation.Builder(classMetadata.getClassName(), subParts[0], arguments).build();
+            } else {
+                final String callObjectClassName = subParts[0].replaceAll("/", ".");
+                methodInvocation = new MethodInvocation.Builder(callObjectClassName, subParts[1], arguments).build();
+            }
+            final Optional<ClassMetadata> invocationClassMetadata = classMetadataList.stream()
+                    .filter(metadata -> metadata.getClassName().equals(methodInvocation.getType()))
+                    .findFirst();
+
+            if (!invocationClassMetadata.isPresent()) {
+                return methodInvocation;
+            }
+
+            final ClassMetadata maybeInterfaceClassMetadata = invocationClassMetadata.get();
+            if (maybeInterfaceClassMetadata.isInterface()) {
+                System.out.println("interface found in invocation list");
+                final List<ClassMetadata> implementations = classMetadataList.stream()
+                        .filter(metadata -> metadata.getInterfaces().stream()
+                                .anyMatch(impl -> {
+                                    return impl.contains(maybeInterfaceClassMetadata.getClassName());
+                                })).collect(Collectors.toList());
+                final List<MethodInvocation> aggregateInvocations = implementations.stream()
+                        .map(impl -> findInvocationsInMethod(impl, classMetadataList, methodInvocation.getMethod(),
+                                methodInvocation.getArguments()))
+                        .flatMap(List::stream)
+                        .map(impl -> new MethodInvocation.Builder(impl.getType(), impl.getMethod(),
+                                impl.getArguments(), impl.getMethodInvocations()).discreet(false).build())
+                        .collect(Collectors.toList());
+                return new MethodInvocation.Builder(methodInvocation.getType(), methodInvocation.getMethod(),
+                        methodInvocation.getArguments(), aggregateInvocations).build();
+            } else {
+                System.out.println("no interface object in invocation list");
+                final List<MethodInvocation> nestedInvocations = findInvocationsInMethod(maybeInterfaceClassMetadata,
+                        classMetadataList, methodInvocation.getMethod(),
+                        methodInvocation.getArguments());
+                if (methodInvocation.getMethod().contains("<init>")) {
+                    final List<MethodInvocation> impliedInvocations = implicitMethod.stream().map(method -> {
+                        final Optional<ClassMetadata> maybeNewObjectClassMetadata = classMetadataList.stream()
+                                .filter(metadata -> metadata.getClassName().equals(methodInvocation.getType()))
+                                .findFirst();
+                        return maybeNewObjectClassMetadata
+                                .map(newObjectClassMetadata -> findInvocationsInMethod(newObjectClassMetadata,
+                                        classMetadataList, method, ""))
+                                .orElse(null);
+                    }).filter(Objects::nonNull)
+                            .flatMap(List::stream)
+                            .collect(Collectors.toList());
+                    nestedInvocations.addAll(impliedInvocations);
+                }
+                return new MethodInvocation.Builder(methodInvocation.getType(), methodInvocation.getMethod(),
+                        methodInvocation.getArguments(), nestedInvocations).build();
+            }
+
+        }).collect(Collectors.toList());
+        System.out.println("done processing className " + classMetadata.getClassName() + " meth ref " + methodNameReference);
+        return invocations;
+
     }
 
 }
