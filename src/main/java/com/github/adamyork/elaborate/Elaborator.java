@@ -16,8 +16,8 @@ import java.util.stream.Collectors;
  * Created by Adam York on 3/9/2018.
  * Copyright 2018
  */
-@SuppressWarnings({"WeakerAccess", "OptionalUsedAsFieldOrParameterType"})
-public class Elaborator {
+@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
+class Elaborator {
 
     private final String inputPath;
     private final String className;
@@ -26,31 +26,18 @@ public class Elaborator {
     private final List<String> excludes;
     private final List<String> implicitMethod;
 
-    public Elaborator(final String inputPath,
-                      final String className,
-                      final String methodName,
-                      final List<String> includes,
-                      final List<String> excludes,
-                      final List<String> implicitMethods) {
+    Elaborator(final String inputPath,
+               final String className,
+               final String methodName,
+               final List<String> includes,
+               final List<String> excludes,
+               final List<String> implicitMethods) {
         this.inputPath = inputPath;
         this.className = className;
         this.methodName = methodName;
         this.includes = includes;
         this.excludes = excludes;
         this.implicitMethod = implicitMethods;
-    }
-
-    public List<MethodInvocation> run() {
-        final File source = new File(inputPath);
-        final Parser parser = new Parser();
-        final List<ClassMetadata> classMetadataList = parser.parse(source, includes);
-        final Optional<ClassMetadata> targetMetadata = classMetadataList.stream()
-                .filter(metadata -> metadata.getClassName().equals(className))
-                .findFirst();
-        return targetMetadata.map(metadata -> findInvocationsInMethod(metadata,
-                classMetadataList, methodName, ""))
-                .or(() -> Optional.of(new ArrayList<>()))
-                .get();
     }
 
     private Pattern buildMethodLocatorPattern(final String methodNameReference, final Optional<String> maybeMethodArgs) {
@@ -74,21 +61,17 @@ public class Elaborator {
         return Pattern.compile("return$", Pattern.MULTILINE);
     }
 
-    //TODO clean up
     private List<MethodInvocation> getSuperClassInvocations(final ClassMetadata classMetadata,
                                                             final List<ClassMetadata> classMetadataList,
                                                             final String methodNameReference) {
         if (!classMetadata.getSuperClass().isEmpty()) {
-            System.out.println("checking super class for method");
+            System.out.println("checking super class " + classMetadata.getClassName() + " for method");
             final Optional<ClassMetadata> superClassMetadata = classMetadataList.stream().filter(metadata -> {
                 final int genericIndex = classMetadata.getSuperClass().indexOf("<");
-                String className;
-                try {
-                    className = classMetadata.getSuperClass().substring(0, genericIndex);
-                } catch (final StringIndexOutOfBoundsException exception) {
-                    className = classMetadata.getSuperClass();
+                if (genericIndex == -1) {
+                    return metadata.getClassName().equals(className);
                 }
-                return metadata.getClassName().equals(className);
+                return metadata.getClassName().equals(classMetadata.getSuperClass().substring(0, genericIndex));
             }).findFirst();
             return superClassMetadata
                     .map(metadata -> findInvocationsInMethod(metadata, classMetadataList, methodNameReference, ""))
@@ -97,40 +80,45 @@ public class Elaborator {
         return new ArrayList<>();
     }
 
-    //TODO clean up
-    private List<String> mergeLambdaBodyLinesWithMethodLines(final List<String> methodBodyLines, final ClassMetadata classMetadata,
+    private List<String> mergeLambdaBodyLinesWithMethodLines(final List<String> methodBodyLines,
+                                                             final ClassMetadata classMetadata,
                                                              final Pattern methodBodyLocator) {
         return methodBodyLines.stream()
                 .map(line -> {
                     final List<String> mergedLines = new ArrayList<>();
                     final Pattern lambdaPattern = Pattern.compile("^.*invokedynamic.*//InvokeDynamic#([0-9]+):");
                     final Matcher lambdaMatcher = lambdaPattern.matcher(line);
-                    if (lambdaMatcher.find()) {
-                        final String lambda = lambdaMatcher.group(1);
-                        final Pattern lambdaReplacementPattern = Pattern.compile(".*lambda\\$.*\\$" + lambda);
-                        final Matcher lambdaReplacementMatcher = lambdaReplacementPattern
-                                .matcher(classMetadata.getClassContent());
-                        if (lambdaReplacementMatcher.find()) {
-                            final String lambdaIndexToEof = classMetadata.getClassContent()
-                                    .substring(lambdaReplacementMatcher.start());
-                            final Matcher lambdaBodyMatcher = methodBodyLocator.matcher(lambdaIndexToEof);
-                            if (lambdaBodyMatcher.find()) {
-                                final String lambdaBody = lambdaBodyMatcher.group();
-                                final Pattern lambdaRefContentPattern = buildMethodBodyEndLocatorPattern();
-                                final Matcher lambdaRefContentBody = lambdaRefContentPattern.matcher(lambdaBody);
-                                if (lambdaRefContentBody.find()) {
-                                    final String lambdaRefMethodBlock = lambdaBody.substring(0,
-                                            lambdaRefContentBody.end());
-                                    final List<String> lambdaRefMethodBlockLines = List.of(lambdaRefMethodBlock
-                                            .split("\n"));
-                                    mergedLines.addAll(lambdaRefMethodBlockLines);
-                                }
-                            }
-                        } else {
-                            mergedLines.add(line);
-                        }
-                    } else {
+                    if (!lambdaMatcher.find()) {
                         mergedLines.add(line);
+                        return mergedLines;
+                    }
+
+                    final String lambda = lambdaMatcher.group(1);
+                    final Pattern lambdaReplacementPattern = Pattern.compile(".*lambda\\$.*\\$" + lambda);
+                    final Matcher lambdaReplacementMatcher = lambdaReplacementPattern
+                            .matcher(classMetadata.getClassContent());
+
+                    if (!lambdaReplacementMatcher.find()) {
+                        mergedLines.add(line);
+                        return mergedLines;
+                    }
+
+                    final String lambdaIndexToEof = classMetadata.getClassContent()
+                            .substring(lambdaReplacementMatcher.start());
+                    final Matcher lambdaBodyMatcher = methodBodyLocator.matcher(lambdaIndexToEof);
+
+                    if (!lambdaBodyMatcher.find()) {
+                        mergedLines.add(line);
+                        return mergedLines;
+                    }
+
+                    final String lambdaBody = lambdaBodyMatcher.group();
+                    final Pattern lambdaRefContentPattern = buildMethodBodyEndLocatorPattern();
+                    final Matcher lambdaRefContentBody = lambdaRefContentPattern.matcher(lambdaBody);
+                    if (lambdaRefContentBody.find()) {
+                        final String lambdaRefMethodBlock = lambdaBody.substring(0, lambdaRefContentBody.end());
+                        final List<String> lambdaRefMethodBlockLines = List.of(lambdaRefMethodBlock.split("\n"));
+                        mergedLines.addAll(lambdaRefMethodBlockLines);
                     }
                     return mergedLines;
                 })
@@ -278,6 +266,19 @@ public class Elaborator {
         System.out.println("done processing className " + classMetadata.getClassName() + " meth ref " + methodNameReference);
         return invocations;
 
+    }
+
+    List<MethodInvocation> run() {
+        final File source = new File(inputPath);
+        final Parser parser = new Parser();
+        final List<ClassMetadata> classMetadataList = parser.parse(source, includes);
+        final Optional<ClassMetadata> targetMetadata = classMetadataList.stream()
+                .filter(metadata -> metadata.getClassName().equals(className))
+                .findFirst();
+        return targetMetadata.map(metadata -> findInvocationsInMethod(metadata,
+                classMetadataList, methodName, ""))
+                .or(() -> Optional.of(new ArrayList<>()))
+                .get();
     }
 
 }
