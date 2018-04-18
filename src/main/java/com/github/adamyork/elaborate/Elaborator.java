@@ -185,7 +185,11 @@ public class Elaborator {
                                 }).collect(Collectors.toList());
                                 final List<MethodInvocation> aggregateInvocations = implementations.stream().map(impl -> {
                                     return findInnerCallsInMethod(impl, classMetadataList, methodInvocation.getMethod(), methodInvocation.getArguments());
-                                }).flatMap(List::stream).collect(Collectors.toList());
+                                }).flatMap(List::stream)
+                                        .collect(Collectors.toList()).stream().map(impl -> {
+                                            return new MethodInvocation.Builder(impl.getType(), impl.getMethod(),
+                                                    impl.getArguments(), impl.getMethodInvocations()).discreet(false).build();
+                                        }).collect(Collectors.toList());
                                 return new MethodInvocation.Builder(methodInvocation.getType(), methodInvocation.getMethod(),
                                         methodInvocation.getArguments(), aggregateInvocations).build();
                             } else {

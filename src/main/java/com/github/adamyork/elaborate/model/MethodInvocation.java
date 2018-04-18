@@ -12,12 +12,16 @@ public class MethodInvocation {
     private final String type;
     private final String method;
     private final String arguments;
+    private final boolean matches;
+    private final boolean discreet;
     private final List<MethodInvocation> methodInvocations;
 
     private MethodInvocation(final Builder builder) {
         this.type = builder.type;
         this.method = builder.method;
         this.arguments = builder.arguments;
+        this.matches = builder.matches;
+        this.discreet = builder.discreet;
         this.methodInvocations = builder.methodInvocations;
     }
 
@@ -33,6 +37,14 @@ public class MethodInvocation {
         return arguments;
     }
 
+    public boolean matches() {
+        return matches;
+    }
+
+    public boolean discreet() {
+        return discreet;
+    }
+
     public List<MethodInvocation> getMethodInvocations() {
         return methodInvocations;
     }
@@ -42,6 +54,8 @@ public class MethodInvocation {
         private String type;
         private String method;
         private String arguments;
+        private boolean matches;
+        private boolean discreet;
         private List<MethodInvocation> methodInvocations;
 
         public Builder(final String type,
@@ -50,6 +64,7 @@ public class MethodInvocation {
             this.type = type;
             this.method = method;
             this.arguments = arguments;
+            this.discreet = true;
             this.methodInvocations = new ArrayList<>();
         }
 
@@ -60,7 +75,27 @@ public class MethodInvocation {
             this.type = type;
             this.method = method;
             this.arguments = arguments;
+            this.discreet = true;
             this.methodInvocations = methodInvocations;
+        }
+
+        public Builder(final String type,
+                       final String method,
+                       final String arguments,
+                       final boolean matches,
+                       final boolean discreet,
+                       final List<MethodInvocation> methodInvocations) {
+            this.type = type;
+            this.method = method;
+            this.arguments = arguments;
+            this.matches = matches;
+            this.discreet = discreet;
+            this.methodInvocations = methodInvocations;
+        }
+
+        public Builder discreet(final boolean discreet) {
+            this.discreet = discreet;
+            return this;
         }
 
         public MethodInvocation build() {

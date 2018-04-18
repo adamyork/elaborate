@@ -10,7 +10,7 @@ import java.util.Optional;
 
 import static org.junit.Assert.assertTrue;
 
-public class WhiteListTest {
+public class WhiteListServiceTest {
 
     @Test
     public void testWhiteListFiltering() {
