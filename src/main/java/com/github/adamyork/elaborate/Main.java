@@ -6,7 +6,7 @@ import com.github.adamyork.elaborate.model.MethodInvocation;
 import com.github.adamyork.elaborate.model.WriterMemo;
 import com.github.adamyork.elaborate.service.ConsoleService;
 import com.github.adamyork.elaborate.service.TextService;
-import com.github.adamyork.elaborate.service.UMLService;
+import com.github.adamyork.elaborate.service.UmlService;
 import com.github.adamyork.elaborate.service.WhiteListService;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -71,17 +71,18 @@ public class Main {
         if (outputFilePathOptional.isPresent()) {
             final String outputFilePath = outputFilePathOptional.get();
             if (outputFilePath.contains(".svg")) {
-                final UMLService umlService = new UMLService(className, methodName, outputFilePath);
+                final UmlService umlService = new UmlService(className, methodName, outputFilePath);
                 umlService.write(maybeFiltered);
                 System.exit(0);
             }
-            final TextService textService = new TextService(className, methodName, outputFilePath);
-            textService.write(maybeFiltered, 0, new WriterMemo.Builder("").build());
+            final TextService textService = new TextService();
+            textService.write(className, methodName, outputFilePath, maybeFiltered, 0,
+                    new WriterMemo.Builder("").build());
             System.exit(0);
         }
 
-        final ConsoleService consoleService = new ConsoleService(className, methodName);
-        consoleService.print(maybeFiltered, 0);
+        final ConsoleService consoleService = new ConsoleService();
+        consoleService.print(className, methodName, maybeFiltered, 0);
         System.exit(0);
     }
 

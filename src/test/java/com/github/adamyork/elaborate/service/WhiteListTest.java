@@ -1,4 +1,4 @@
-package com.github.adamyork.elaborate;
+package com.github.adamyork.elaborate.service;
 
 import com.github.adamyork.elaborate.model.MethodInvocation;
 import com.github.adamyork.elaborate.service.WhiteListService;

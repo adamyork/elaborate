@@ -17,13 +17,13 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class UMLService {
+public class UmlService {
 
     private final String className;
     private final String methodName;
     private final String outputFilePath;
 
-    public UMLService(final String className, final String methodName, final String outputFilePath) {
+    public UmlService(final String className, final String methodName, final String outputFilePath) {
         this.className = className;
         this.methodName = methodName;
         this.outputFilePath = outputFilePath;

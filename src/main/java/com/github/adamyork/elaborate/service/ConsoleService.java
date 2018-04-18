@@ -9,28 +9,25 @@ import java.util.List;
  * Created by Adam York on 3/9/2018.
  * Copyright 2018
  */
-public class ConsoleService {
+public class ConsoleService extends AbstractPrintService {
 
-    private final String className;
-    private final String methodName;
-
-    public ConsoleService(final String className, final String methodName) {
-        this.className = className;
-        this.methodName = methodName;
-    }
-
-    public void print(final List<MethodInvocation> methodInvocations, final int indentationLevel) {
-        String tabs = StringUtils.repeat("\t", indentationLevel);
-        System.out.println(tabs + className + "::" + methodName + " calls");
+    public void print(final String className, final String methodName, final List<MethodInvocation> methodInvocations,
+                      final int indentationLevel) {
+        final String initialTabs = StringUtils.repeat("\t", indentationLevel);
+        final String immediateOutput = normalizeObjectCreation(className, methodName, " calls");
+        System.out.println(initialTabs + immediateOutput);
         final int nextIndentationLevel = indentationLevel + 1;
-        tabs = StringUtils.repeat("\t", indentationLevel + 1);
-        for (final MethodInvocation methodInvocation : methodInvocations) {
+        final String subsequentTabs = StringUtils.repeat("\t", indentationLevel + 1);
+        methodInvocations.forEach(methodInvocation -> {
             if (methodInvocation.getMethodInvocations().size() > 0) {
-                final ConsoleService consoleService = new ConsoleService(methodInvocation.getType(), methodInvocation.getMethod());
-                consoleService.print(methodInvocation.getMethodInvocations(), nextIndentationLevel);
+                print(methodInvocation.getType(), methodInvocation.getMethod(), methodInvocation.getMethodInvocations(),
+                        nextIndentationLevel);
             } else {
-                System.out.println(tabs + methodInvocation.getType() + "::" + methodInvocation.getMethod());
+                final String innerOutput = normalizeObjectCreation(methodInvocation.getType(),
+                        methodInvocation.getMethod(), "");
+                System.out.println(subsequentTabs + innerOutput);
             }
-        }
+        });
     }
+
 }
