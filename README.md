@@ -14,6 +14,7 @@ command is invoked, elaborate can generate a visual, filtered representation of 
 
 download the elaborate jar
 
+*elaborate requires JRE 9+*
 
 ## how
 
@@ -72,3 +73,11 @@ text
 
 
 svg
+
+
+
+#### limitations
+
+because of the way many modern applications are built, run time context can greatly alter code paths. because of this,
+elaborate will attempt to construct a graph the represents all possible code paths, if one or more is detected through 
+the usage of interfaces.
