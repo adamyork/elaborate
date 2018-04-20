@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -40,6 +41,20 @@ class Elaborator {
         this.implicitMethod = implicitMethods;
     }
 
+    @SuppressWarnings("WeakerAccess")
+    public List<MethodInvocation> run() {
+        final File source = new File(inputPath);
+        final Parser parser = new Parser();
+        final List<ClassMetadata> classMetadataList = parser.parse(source, includes);
+        final Optional<ClassMetadata> targetMetadata = classMetadataList.stream()
+                .filter(metadata -> metadata.getClassName().equals(className))
+                .findFirst();
+        return targetMetadata.map(metadata -> findInvocationsInMethod(metadata,
+                classMetadataList, methodName, ""))
+                .or(() -> Optional.of(new ArrayList<>()))
+                .get();
+    }
+
     private Pattern buildMethodLocatorPattern(final String methodNameReference, final Optional<String> maybeMethodArgs) {
         return maybeMethodArgs.map(methodArgs -> {
             final String replaced = methodArgs.replace("/", ".")
@@ -69,7 +84,7 @@ class Elaborator {
             final Optional<ClassMetadata> superClassMetadata = classMetadataList.stream().filter(metadata -> {
                 final int genericIndex = classMetadata.getSuperClass().indexOf("<");
                 if (genericIndex == -1) {
-                    return metadata.getClassName().equals(className);
+                    return metadata.getClassName().equals(classMetadata.getSuperClass());
                 }
                 return metadata.getClassName().equals(classMetadata.getSuperClass().substring(0, genericIndex));
             }).findFirst();
@@ -126,42 +141,146 @@ class Elaborator {
                 .collect(Collectors.toList());
     }
 
+    private Predicate<String> invocationIsNotAlsoImplied() {
+        return line -> {
+            final String[] leftOfSemiColon = line.split(":");
+            if (leftOfSemiColon.length == 0) {
+                return true;
+            }
+            final String firstLeftGroup = leftOfSemiColon[0];
+            final String[] selfInvocationGroups = firstLeftGroup.split("\\.");
+            if (selfInvocationGroups.length == 0 || selfInvocationGroups.length == 1) {
+                return true;
+            }
+            final String selfInvocation = selfInvocationGroups[1];
+            return implicitMethod.stream().noneMatch(include -> include.equals(selfInvocation));
+        };
+    }
+
+    private Predicate<String> invocationIsNotExcluded() {
+        return line -> {
+            final String normalized = line.replace("/", ".").split(":")[0];
+            return excludes.stream().noneMatch(exclude -> {
+                final Pattern excludePattern = Pattern.compile(exclude);
+                final Matcher excludeMatcher = excludePattern.matcher(normalized);
+                return excludeMatcher.find();
+            });
+        };
+    }
+
+    private Predicate<String> invocationIsKnownKind() {
+        return line -> line.contains("invokevirtual") ||
+                line.contains("invokeinterface") ||
+                line.contains("invokestatic") ||
+                line.contains("invokespecial") ||
+                line.contains("invokedynamic");
+    }
+
     private List<String> filterNonEssentialInternalsFromMethodLines(final List<String> methodBodyLines) {
         return methodBodyLines.stream()
-                .filter(line -> line.contains("invokevirtual") || line.contains("invokeinterface")
-                        || line.contains("invokestatic") || line.contains("invokespecial") || line.contains("invokedynamic"))
+                .filter(invocationIsKnownKind())
                 .map(line -> line.replaceAll("^.*invokevirtual.*//Method", ""))
                 .map(line -> line.replaceAll("^.*invokeinterface.*//InterfaceMethod", ""))
                 .map(line -> line.replaceAll("^.*invokestatic.*//Method", ""))
                 .map(line -> line.replaceAll("^.*invokestatic.*//InterfaceMethod", ""))
                 .map(line -> line.replaceAll("^.*invokespecial.*//Method", ""))
                 .map(line -> line.replaceAll("^.*invokedynamic.*//InvokeDynamic#[0-9]+:", "a/dynamic/pkg/Lamda."))
-                .filter(line -> {
-                    try {
-                        //TODO clean up
-                        final String left = line.split(":")[0];
-                        final String selfInvocation = left.split("\\.")[1];
-                        return implicitMethod.stream().noneMatch(include -> include.equals(selfInvocation));
-                    } catch (final IndexOutOfBoundsException exception) {
-                        return true;
-                    }
-                })
-                .filter(line -> {
-                    final String normalized = line.replace("/", ".").split(":")[0];
-                    return excludes.stream().noneMatch(exclude -> {
-                        final Pattern excludePattern = Pattern.compile(exclude);
-                        final Matcher excludeMatcher = excludePattern.matcher(normalized);
-                        return excludeMatcher.find();
-                    });
-                })
+                .filter(invocationIsNotAlsoImplied())
+                .filter(invocationIsNotExcluded())
                 .collect(Collectors.toList());
+    }
+
+    private String trimArguments(final String[] argumentParts) {
+        if (argumentParts.length != 1) {
+            return argumentParts[0].substring(1);
+        }
+        return "";
+    }
+
+    private MethodInvocation lineToMethodInvocation(final String line, final ClassMetadata classMetadata,
+                                                    final List<ClassMetadata> classMetadataList) {
+        final String normalizedLine = line.replace("\"[L", "").replace(";\"", "");
+        final String[] parts = normalizedLine.split(":\\(");
+        final String methodReference = parts[0];
+        final String right = parts[1];
+        final String[] argumentsParts = right.split(";\\)|;Z\\)");
+        final String arguments = trimArguments(argumentsParts);
+
+        final String[] maybeArguments = methodReference.split("\\.");
+
+        final MethodInvocation methodInvocation;
+        if (maybeArguments.length == 1) {
+            methodInvocation = new MethodInvocation.Builder(classMetadata.getClassName(), maybeArguments[0], arguments).build();
+        } else {
+            final String callObjectClassName = maybeArguments[0].replaceAll("/", ".");
+            methodInvocation = new MethodInvocation.Builder(callObjectClassName, maybeArguments[1], arguments).build();
+        }
+
+        final Optional<ClassMetadata> invocationClassMetadata = classMetadataList.stream()
+                .filter(metadata -> metadata.getClassName().equals(methodInvocation.getType()))
+                .findFirst();
+
+        if (!invocationClassMetadata.isPresent()) {
+            return methodInvocation;
+        }
+
+        final ClassMetadata maybeInterfaceClassMetadata = invocationClassMetadata.get();
+        if (maybeInterfaceClassMetadata.isInterface()) {
+            System.out.println("interface " + maybeInterfaceClassMetadata.getClassName() + " found in invocation list");
+            return processPossibleImplementations(classMetadataList, maybeInterfaceClassMetadata, methodInvocation);
+        } else {
+            System.out.println("no interface object in invocation list");
+            final List<MethodInvocation> nestedInvocations = findInvocationsInMethod(maybeInterfaceClassMetadata,
+                    classMetadataList, methodInvocation.getMethod(),
+                    methodInvocation.getArguments());
+            nestedInvocations.addAll(processImpliedMethodInvocations(classMetadataList, methodInvocation));
+            return new MethodInvocation.Builder(methodInvocation.getType(), methodInvocation.getMethod(),
+                    methodInvocation.getArguments(), nestedInvocations).build();
+        }
+    }
+
+    private List<MethodInvocation> processImpliedMethodInvocations(final List<ClassMetadata> classMetadataList,
+                                                                   final MethodInvocation methodInvocation) {
+        if (!methodInvocation.getMethod().contains("<init>")) {
+            return new ArrayList<>();
+        }
+        return implicitMethod.stream().map(method -> {
+            final Optional<ClassMetadata> maybeNewObjectClassMetadata = classMetadataList.stream()
+                    .filter(metadata -> metadata.getClassName().equals(methodInvocation.getType()))
+                    .findFirst();
+            return maybeNewObjectClassMetadata
+                    .map(newObjectClassMetadata -> findInvocationsInMethod(newObjectClassMetadata,
+                            classMetadataList, method, ""))
+                    .orElse(null);
+        }).filter(Objects::nonNull)
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
+    }
+
+    private MethodInvocation processPossibleImplementations(final List<ClassMetadata> classMetadataList,
+                                                            final ClassMetadata maybeInterfaceClassMetadata,
+                                                            final MethodInvocation methodInvocation) {
+        final List<ClassMetadata> implementations = classMetadataList.stream()
+                .filter(metadata -> metadata.getInterfaces().stream()
+                        .anyMatch(impl -> {
+                            return impl.contains(maybeInterfaceClassMetadata.getClassName());
+                        })).collect(Collectors.toList());
+        final List<MethodInvocation> aggregateInvocations = implementations.stream()
+                .map(impl -> findInvocationsInMethod(impl, classMetadataList, methodInvocation.getMethod(),
+                        methodInvocation.getArguments()))
+                .flatMap(List::stream)
+                .map(impl -> new MethodInvocation.Builder(impl.getType(), impl.getMethod(),
+                        impl.getArguments(), impl.getMethodInvocations()).discreet(false).build())
+                .collect(Collectors.toList());
+        return new MethodInvocation.Builder(methodInvocation.getType(), methodInvocation.getMethod(),
+                methodInvocation.getArguments(), aggregateInvocations).build();
     }
 
     private List<MethodInvocation> findInvocationsInMethod(final ClassMetadata classMetadata,
                                                            final List<ClassMetadata> classMetadataList,
                                                            final String methodNameReference,
                                                            final String methodArgsReference) {
-        System.out.println("finding method invocations for " + classMetadata.getClassName() + " within method" + methodNameReference);
+        System.out.println("finding method invocations for " + classMetadata.getClassName() + " within method " + methodNameReference);
         final Pattern methodLocator = buildMethodLocatorPattern(methodNameReference, Optional.ofNullable(methodArgsReference));
         final Matcher methodLocatorMatcher = methodLocator.matcher(classMetadata.getClassContent());
 
@@ -196,89 +315,9 @@ class Elaborator {
         final List<String> filtered = filterNonEssentialInternalsFromMethodLines(methodBodyLinesWithDynamicHoisted);
         System.out.println("found " + filtered.size() + " invocations");
 
-        final List<MethodInvocation> invocations = filtered.stream().map(line -> {
-            final String normalizedLine = line.replace("\"[L", "").replace(";\"", "");
-            final String[] parts = normalizedLine.split(":\\(");
-            final String methodReference = parts[0];
-            final String right = parts[1];
-            final String[] argumentsParts = right.split(";\\)|;Z\\)");
-            String arguments = "";
-            if (argumentsParts.length != 1) {
-                arguments = argumentsParts[0].substring(1);
-            }
-            final String[] subParts = methodReference.split("\\.");
-            final MethodInvocation methodInvocation;
-            if (subParts.length == 1) {
-                methodInvocation = new MethodInvocation.Builder(classMetadata.getClassName(), subParts[0], arguments).build();
-            } else {
-                final String callObjectClassName = subParts[0].replaceAll("/", ".");
-                methodInvocation = new MethodInvocation.Builder(callObjectClassName, subParts[1], arguments).build();
-            }
-            final Optional<ClassMetadata> invocationClassMetadata = classMetadataList.stream()
-                    .filter(metadata -> metadata.getClassName().equals(methodInvocation.getType()))
-                    .findFirst();
-
-            if (!invocationClassMetadata.isPresent()) {
-                return methodInvocation;
-            }
-
-            final ClassMetadata maybeInterfaceClassMetadata = invocationClassMetadata.get();
-            if (maybeInterfaceClassMetadata.isInterface()) {
-                System.out.println("interface found in invocation list");
-                final List<ClassMetadata> implementations = classMetadataList.stream()
-                        .filter(metadata -> metadata.getInterfaces().stream()
-                                .anyMatch(impl -> {
-                                    return impl.contains(maybeInterfaceClassMetadata.getClassName());
-                                })).collect(Collectors.toList());
-                final List<MethodInvocation> aggregateInvocations = implementations.stream()
-                        .map(impl -> findInvocationsInMethod(impl, classMetadataList, methodInvocation.getMethod(),
-                                methodInvocation.getArguments()))
-                        .flatMap(List::stream)
-                        .map(impl -> new MethodInvocation.Builder(impl.getType(), impl.getMethod(),
-                                impl.getArguments(), impl.getMethodInvocations()).discreet(false).build())
-                        .collect(Collectors.toList());
-                return new MethodInvocation.Builder(methodInvocation.getType(), methodInvocation.getMethod(),
-                        methodInvocation.getArguments(), aggregateInvocations).build();
-            } else {
-                System.out.println("no interface object in invocation list");
-                final List<MethodInvocation> nestedInvocations = findInvocationsInMethod(maybeInterfaceClassMetadata,
-                        classMetadataList, methodInvocation.getMethod(),
-                        methodInvocation.getArguments());
-                if (methodInvocation.getMethod().contains("<init>")) {
-                    final List<MethodInvocation> impliedInvocations = implicitMethod.stream().map(method -> {
-                        final Optional<ClassMetadata> maybeNewObjectClassMetadata = classMetadataList.stream()
-                                .filter(metadata -> metadata.getClassName().equals(methodInvocation.getType()))
-                                .findFirst();
-                        return maybeNewObjectClassMetadata
-                                .map(newObjectClassMetadata -> findInvocationsInMethod(newObjectClassMetadata,
-                                        classMetadataList, method, ""))
-                                .orElse(null);
-                    }).filter(Objects::nonNull)
-                            .flatMap(List::stream)
-                            .collect(Collectors.toList());
-                    nestedInvocations.addAll(impliedInvocations);
-                }
-                return new MethodInvocation.Builder(methodInvocation.getType(), methodInvocation.getMethod(),
-                        methodInvocation.getArguments(), nestedInvocations).build();
-            }
-
-        }).collect(Collectors.toList());
-        System.out.println("done processing className " + classMetadata.getClassName() + " meth ref " + methodNameReference);
-        return invocations;
-
-    }
-
-    List<MethodInvocation> run() {
-        final File source = new File(inputPath);
-        final Parser parser = new Parser();
-        final List<ClassMetadata> classMetadataList = parser.parse(source, includes);
-        final Optional<ClassMetadata> targetMetadata = classMetadataList.stream()
-                .filter(metadata -> metadata.getClassName().equals(className))
-                .findFirst();
-        return targetMetadata.map(metadata -> findInvocationsInMethod(metadata,
-                classMetadataList, methodName, ""))
-                .or(() -> Optional.of(new ArrayList<>()))
-                .get();
+        return filtered.stream()
+                .map(line -> lineToMethodInvocation(line, classMetadata, classMetadataList))
+                .collect(Collectors.toList());
     }
 
 }
