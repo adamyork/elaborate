@@ -1,11 +1,9 @@
-/*
- * Copyright (c) 2018.
- */
-
 package com.github.adamyork.elaborate;
 
 import com.github.adamyork.elaborate.model.ClassMetadata;
 import org.apache.commons.io.IOUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jooq.lambda.Unchecked;
 
 import java.io.ByteArrayOutputStream;
@@ -28,10 +26,17 @@ import java.util.regex.Pattern;
 import java.util.spi.ToolProvider;
 import java.util.stream.Collectors;
 
+/**
+ * Created by Adam York on 3/9/2018.
+ * Copyright 2018
+ */
 @SuppressWarnings("WeakerAccess")
 public class Parser {
 
+    private static final Logger LOG = LogManager.getLogger(Parser.class);
+
     public List<ClassMetadata> parse(final File source, final List<String> libraryIncludes) {
+        LOG.info("processing sources for " + source.getName());
         final JarFile jarFile = Unchecked.function(f -> new JarFile(source)).apply(null);
         final Enumeration<JarEntry> entries = jarFile.entries();
         final List<ClassMetadata> classMetadataList = new ArrayList<>();
@@ -56,8 +61,12 @@ public class Parser {
                 libraryEntries.add(entry);
             }
         }
+        LOG.info(libraryIncludes.size() + " include sources found");
         if (libraryIncludes.size() > 0) {
-            final List<JarEntry> filtered = libraryEntries.stream().filter(entry -> libraryIncludes.stream().anyMatch(include -> entry.getName().contains(include))).collect(Collectors.toList());
+            final List<JarEntry> filtered = libraryEntries.stream()
+                    .filter(entry -> libraryIncludes.stream()
+                            .anyMatch(include -> entry.getName().contains(include)))
+                    .collect(Collectors.toList());
             final List<ClassMetadata> allLibraryMetadataList = filtered.stream().map(entry -> {
                 final InputStream in = Unchecked.function(f -> jarFile.getInputStream(entry)).apply(null);
                 final File tempFile = Unchecked.function(f -> File.createTempFile("tmp", ".class")).apply(null);
@@ -71,6 +80,7 @@ public class Parser {
             }).flatMap(List::stream).collect(Collectors.toList());
             classMetadataList.addAll(allLibraryMetadataList);
         }
+        LOG.info("processed all sources for " + source.getName());
         return classMetadataList;
     }
 
@@ -87,17 +97,28 @@ public class Parser {
                     true, charset.name())).apply(null);
             toolProvider.run(contentsStream, errorStream, "-c", "-p", String.valueOf(file));
             final String content = new String(contentByteArrayStream.toByteArray(), charset);
-            //TODO probably should handle error here
             final String error = new String(errorByteArrayStream.toByteArray(), charset);
             final String trimmed = content.replace(" ", "");
-            contentsStream.close();
-            errorStream.close();
+            if (!error.isEmpty()) {
+                LOG.error(error);
+                closeStreams(contentsStream, errorStream, contentByteArrayStream, errorByteArrayStream);
+                return null;
+            }
             final ClassMetadata classMetadata = buildMetadata(trimmed, className);
-            Unchecked.consumer(o -> contentByteArrayStream.close()).accept(null);
-            Unchecked.consumer(o -> errorByteArrayStream.close()).accept(null);
+            closeStreams(contentsStream, errorStream, contentByteArrayStream, errorByteArrayStream);
             return classMetadata;
         }
         return null;
+    }
+
+    private void closeStreams(final PrintStream contentsStream,
+                              final PrintStream errorStream,
+                              final ByteArrayOutputStream contentByteArrayStream,
+                              final ByteArrayOutputStream errorByteArrayStream) {
+        contentsStream.close();
+        errorStream.close();
+        Unchecked.consumer(o -> contentByteArrayStream.close()).accept(null);
+        Unchecked.consumer(o -> errorByteArrayStream.close()).accept(null);
     }
 
     private ClassMetadata buildMetadata(final String content, final String className) {

@@ -15,8 +15,10 @@ import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.config.Configurator;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -35,12 +37,13 @@ public class Main {
 
     public static void main(final String[] args) throws IOException {
 
-        LOG.info("starting process");
-
         final Options options = new Options();
-        final Option classOption = new Option("c", "config", true, "class with entry method");
+        final Option classOption = new Option("c", "config", true, "json configuration");
+        final Option verboseOption = new Option("v", "verbose", false, "verbose logging level");
         classOption.setRequired(true);
+        verboseOption.setRequired(false);
         options.addOption(classOption);
+        options.addOption(verboseOption);
 
         final CommandLineParser parser = new DefaultParser();
         final HelpFormatter formatter = new HelpFormatter();
@@ -59,6 +62,13 @@ public class Main {
         final ObjectMapper mapper = new ObjectMapper();
         final Config config = mapper.readValue(json, Config.class);
 
+        final Boolean verbose = cmd.hasOption("v");
+
+        if (verbose) {
+            LOG.info("verbose logging enabled");
+            Configurator.setRootLevel(Level.DEBUG);
+        }
+
         final String inputPath = config.getInput();
         final String className = config.getEntryClass();
         final String methodName = config.getEntryMethod();
@@ -66,30 +76,45 @@ public class Main {
         final List<String> excludes = config.getExcludes();
         final List<String> implicitMethods = config.getImplicitMethods();
         final Optional<List<String>> maybeWhiteList = Optional.ofNullable(config.getWhiteList());
+        final Optional<String> outputFilePathOptional = Optional.ofNullable(config.getOutput());
+
+        LOG.info("elaborating " + className + "::" + methodName);
+        LOG.debug("config---------------------------------");
+        LOG.debug("includes " + includes.toString());
+        LOG.debug("excludes " + excludes.toString());
+        LOG.debug("implicitMethods " + implicitMethods.toString());
+        LOG.debug("maybeWhiteList " + maybeWhiteList.toString());
+        LOG.debug("outputFilePathOptional " + outputFilePathOptional.toString());
+        LOG.debug("---------------------------------------");
 
         final Elaborator elaborator = new Elaborator(inputPath, className, methodName,
                 includes, excludes, implicitMethods);
         final List<MethodInvocation> methodInvocations = elaborator.run();
         final WhiteListService whiteListService = new WhiteListService();
+        LOG.info("applying filters");
         final List<MethodInvocation> maybeFiltered = whiteListService.manageList(methodInvocations, maybeWhiteList,
                 className, methodName);
 
-        final Optional<String> outputFilePathOptional = Optional.ofNullable(config.getOutput());
         if (outputFilePathOptional.isPresent()) {
             final String outputFilePath = outputFilePathOptional.get();
             if (outputFilePath.contains(".svg")) {
+                LOG.info("writing svg output");
                 final UmlService umlService = new UmlService(className, methodName, outputFilePath);
                 umlService.write(maybeFiltered);
+                LOG.info("elaboration complete");
                 System.exit(0);
             }
+            LOG.info("writing text output");
             final TextService textService = new TextService();
             textService.write(className, methodName, outputFilePath, maybeFiltered, 0,
                     new WriterMemo.Builder("").build());
+            LOG.info("elaboration complete");
             System.exit(0);
         }
 
         final ConsoleService consoleService = new ConsoleService();
         consoleService.print(className, methodName, maybeFiltered, 0);
+        LOG.info("elaboration complete");
         System.exit(0);
     }
 
