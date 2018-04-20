@@ -8,10 +8,19 @@ import com.github.adamyork.elaborate.model.ClassMetadata;
 import org.apache.commons.io.IOUtils;
 import org.jooq.lambda.Unchecked;
 
-import java.io.*;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.PrintStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Enumeration;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Optional;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.regex.Matcher;
@@ -48,11 +57,7 @@ public class Parser {
             }
         }
         if (libraryIncludes.size() > 0) {
-            final List<JarEntry> filtered = libraryEntries.stream().filter(entry -> {
-                return libraryIncludes.stream().anyMatch(include -> {
-                    return entry.getName().contains(include);
-                });
-            }).collect(Collectors.toList());
+            final List<JarEntry> filtered = libraryEntries.stream().filter(entry -> libraryIncludes.stream().anyMatch(include -> entry.getName().contains(include))).collect(Collectors.toList());
             final List<ClassMetadata> allLibraryMetadataList = filtered.stream().map(entry -> {
                 final InputStream in = Unchecked.function(f -> jarFile.getInputStream(entry)).apply(null);
                 final File tempFile = Unchecked.function(f -> File.createTempFile("tmp", ".class")).apply(null);
@@ -62,8 +67,7 @@ public class Parser {
                 Unchecked.consumer(f -> in.close()).accept(null);
                 Unchecked.consumer(f -> out.close()).accept(null);
                 final Parser parser = new Parser();
-                final List<ClassMetadata> libraryMetadataList = parser.parse(tempFile, libraryIncludes);
-                return libraryMetadataList;
+                return parser.parse(tempFile, libraryIncludes);
             }).flatMap(List::stream).collect(Collectors.toList());
             classMetadataList.addAll(allLibraryMetadataList);
         }

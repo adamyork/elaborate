@@ -15,6 +15,8 @@ import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -26,9 +28,14 @@ import java.util.Optional;
  * Created by Adam York on 3/9/2018.
  * Copyright 2018
  */
+@SuppressWarnings("WeakerAccess")
 public class Main {
 
+    private static final Logger LOG = LogManager.getLogger(Main.class);
+
     public static void main(final String[] args) throws IOException {
+
+        LOG.info("starting process");
 
         final Options options = new Options();
         final Option classOption = new Option("c", "config", true, "class with entry method");
@@ -42,7 +49,7 @@ public class Main {
         try {
             cmd = parser.parse(options, args);
         } catch (final ParseException e) {
-            System.out.println(e.getMessage());
+            LOG.error(e.getMessage());
             formatter.printHelp("elaborate", options);
             System.exit(1);
             return;

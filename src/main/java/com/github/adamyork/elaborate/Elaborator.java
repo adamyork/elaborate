@@ -4,6 +4,8 @@ import com.github.adamyork.elaborate.model.ClassMetadata;
 import com.github.adamyork.elaborate.model.MethodInvocation;
 import filter.ParserPatterns;
 import filter.ParserPredicates;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -20,6 +22,8 @@ import java.util.stream.Collectors;
  */
 @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
 class Elaborator {
+
+    private static final Logger LOG = LogManager.getLogger(Elaborator.class);
 
     private final String inputPath;
     private final String className;
@@ -60,12 +64,12 @@ class Elaborator {
                                                            final List<ClassMetadata> classMetadataList,
                                                            final String methodNameReference,
                                                            final String methodArgsReference) {
-        System.out.println("finding method invocations for " + classMetadata.getClassName() + " within method " + methodNameReference);
+        LOG.info("finding method invocations for " + classMetadata.getClassName() + " within method " + methodNameReference);
         final Pattern methodLocator = ParserPatterns.buildMethodLocatorPattern(methodNameReference, Optional.ofNullable(methodArgsReference));
         final Matcher methodLocatorMatcher = methodLocator.matcher(classMetadata.getClassContent());
 
         if (!methodLocatorMatcher.find()) {
-            System.out.println("no method named " + methodNameReference + " exists on class " + classMetadata.getClassName());
+            LOG.info("no method named " + methodNameReference + " exists on class " + classMetadata.getClassName());
             return getSuperClassInvocations(classMetadata, classMetadataList, methodNameReference);
         }
 
@@ -74,7 +78,7 @@ class Elaborator {
         final Matcher methodBodyMatcher = methodBodyLocator.matcher(methodIndexToEof);
 
         if (!methodBodyMatcher.find()) {
-            System.out.println("no body found for " + methodNameReference + " on class " + classMetadata.getClassName());
+            LOG.info("no body found for " + methodNameReference + " on class " + classMetadata.getClassName());
             return new ArrayList<>();
         }
 
@@ -83,7 +87,7 @@ class Elaborator {
         final Matcher methodBodyEndMatcher = methodBodyEndLocator.matcher(methodBodyToEof);
 
         if (!methodBodyEndMatcher.find()) {
-            System.out.println("no end of body found for " + methodNameReference + " on class " + classMetadata.getClassName());
+            LOG.info("no end of body found for " + methodNameReference + " on class " + classMetadata.getClassName());
             return new ArrayList<>();
         }
 
@@ -93,7 +97,7 @@ class Elaborator {
                 classMetadata, methodBodyLocator);
 
         final List<String> filtered = filterNonEssentialInternalsFromMethodLines(methodBodyLinesWithDynamicHoisted);
-        System.out.println("found " + filtered.size() + " invocations");
+        LOG.info("found " + filtered.size() + " invocations");
 
         return filtered.stream()
                 .map(line -> lineToMethodInvocation(line, classMetadata, classMetadataList))
@@ -104,7 +108,7 @@ class Elaborator {
                                                             final List<ClassMetadata> classMetadataList,
                                                             final String methodNameReference) {
         if (!classMetadata.getSuperClass().isEmpty()) {
-            System.out.println("checking super class " + classMetadata.getClassName() + " for method");
+            LOG.info("checking super class " + classMetadata.getClassName() + " for method");
             final Optional<ClassMetadata> superClassMetadata = classMetadataList.stream().filter(metadata -> {
                 final int genericIndex = classMetadata.getSuperClass().indexOf("<");
                 if (genericIndex == -1) {
@@ -148,10 +152,10 @@ class Elaborator {
 
         final ClassMetadata maybeInterfaceClassMetadata = invocationClassMetadata.get();
         if (maybeInterfaceClassMetadata.isInterface()) {
-            System.out.println("interface " + maybeInterfaceClassMetadata.getClassName() + " found in invocation list");
+            LOG.info("interface " + maybeInterfaceClassMetadata.getClassName() + " found in invocation list");
             return processPossibleImplementations(classMetadataList, maybeInterfaceClassMetadata, methodInvocation);
         } else {
-            System.out.println("no interface object in invocation list");
+            LOG.info("no interface object in invocation list");
             final List<MethodInvocation> nestedInvocations = findInvocationsInMethod(maybeInterfaceClassMetadata,
                     classMetadataList, methodInvocation.getMethod(),
                     methodInvocation.getArguments());
@@ -252,7 +256,7 @@ class Elaborator {
                 .map(line -> line.replaceAll("^.*invokestatic.*//Method", ""))
                 .map(line -> line.replaceAll("^.*invokestatic.*//InterfaceMethod", ""))
                 .map(line -> line.replaceAll("^.*invokespecial.*//Method", ""))
-                .map(line -> line.replaceAll("^.*invokedynamic.*//InvokeDynamic#[0-9]+:", "a/dynamic/pkg/Lamda."))
+                .map(line -> line.replaceAll("^.*invokedynamic.*//InvokeDynamic#[0-9]+:", "a/dynamic/pkg/Lambda."))
                 .filter(ParserPredicates.invocationIsNotAlsoImplied(implicitMethod))
                 .filter(ParserPredicates.invocationIsNotExcluded(excludes))
                 .collect(Collectors.toList());

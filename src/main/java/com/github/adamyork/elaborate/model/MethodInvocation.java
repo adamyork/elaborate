@@ -51,12 +51,12 @@ public class MethodInvocation {
 
     public static class Builder {
 
-        private String type;
-        private String method;
-        private String arguments;
+        private final String type;
+        private final String method;
+        private final String arguments;
+        private final List<MethodInvocation> methodInvocations;
         private boolean matches;
         private boolean discreet;
-        private List<MethodInvocation> methodInvocations;
 
         public Builder(final String type,
                        final String method,

@@ -18,7 +18,7 @@ public class WriterMemo {
 
     public static class Builder {
 
-        private String output;
+        private final String output;
 
         public Builder(final String output) {
             this.output = output;

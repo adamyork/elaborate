@@ -13,14 +13,14 @@ import java.util.List;
 @JsonDeserialize(builder = Config.Builder.class)
 public class Config {
 
-    private String input;
-    private String entryClass;
-    private String entryMethod;
-    private String output;
-    private List<String> includes;
-    private List<String> excludes;
-    private List<String> implicitMethods;
-    private List<String> whiteList;
+    private final String input;
+    private final String entryClass;
+    private final String entryMethod;
+    private final String output;
+    private final List<String> includes;
+    private final List<String> excludes;
+    private final List<String> implicitMethods;
+    private final List<String> whiteList;
 
     private Config(final Builder builder) {
         this.input = builder.input;
@@ -65,17 +65,18 @@ public class Config {
         return whiteList;
     }
 
+    @SuppressWarnings("WeakerAccess")
     @JsonPOJOBuilder
     public static class Builder {
 
-        private String input;
-        private String entryClass;
-        private String entryMethod;
-        private String output;
-        private List<String> includes;
-        private List<String> excludes;
-        private List<String> implicitMethods;
-        private List<String> whiteList;
+        private final String input;
+        private final String entryClass;
+        private final String entryMethod;
+        private final String output;
+        private final List<String> includes;
+        private final List<String> excludes;
+        private final List<String> implicitMethods;
+        private final List<String> whiteList;
 
         public Builder(@JsonProperty("input") final String input,
                        @JsonProperty("entryClass") final String entryClass,

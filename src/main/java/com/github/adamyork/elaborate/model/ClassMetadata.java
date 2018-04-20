@@ -44,11 +44,11 @@ public class ClassMetadata {
 
     public static class Builder {
 
-        private String className;
-        private String classContent;
-        private String superClass;
-        private boolean isInterface;
-        private List<String> interfaces;
+        private final String className;
+        private final String classContent;
+        private final String superClass;
+        private final boolean isInterface;
+        private final List<String> interfaces;
 
         public Builder(final String className,
                        final String classContent,
