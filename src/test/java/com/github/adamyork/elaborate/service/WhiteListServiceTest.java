@@ -1,14 +1,13 @@
 package com.github.adamyork.elaborate.service;
 
 import com.github.adamyork.elaborate.model.MethodInvocation;
-import com.github.adamyork.elaborate.service.WhiteListService;
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertEquals;
 
 public class WhiteListServiceTest {
 
@@ -47,14 +46,14 @@ public class WhiteListServiceTest {
         final MethodInvocation result = maybeFiltered.orElseGet(() -> new MethodInvocation.Builder("com.pkg.EmptyClass", "",
                 "", new ArrayList<>()).build());
 
-        assertTrue(result.getMethodInvocations().get(0).getMethodInvocations().size() == 1);
-        assertTrue(result.getMethodInvocations().get(1).getMethodInvocations().size() == 1);
-        assertTrue(result.getMethodInvocations().get(0).getMethodInvocations().get(0).getMethodInvocations().size() == 1);
-        assertTrue(result.getMethodInvocations().get(1).getMethodInvocations().get(0).getMethodInvocations().size() == 1);
-        assertTrue(result.getMethodInvocations().get(0).getMethodInvocations().get(0).getMethodInvocations().get(0).getMethodInvocations().size() == 0);
-        assertTrue(result.getMethodInvocations().get(1).getMethodInvocations().get(0).getMethodInvocations().get(0).getMethodInvocations().size() == 0);
-        assertTrue(result.getMethodInvocations().get(0).getMethodInvocations().get(0).getMethodInvocations().get(0).getType().equals("com.pkg.InnerAAA"));
-        assertTrue(result.getMethodInvocations().get(1).getMethodInvocations().get(0).getMethodInvocations().get(0).getType().equals("com.pkg.InnerAAA"));
+        assertEquals(1, result.getMethodInvocations().get(0).getMethodInvocations().size());
+        assertEquals(result.getMethodInvocations().get(1).getMethodInvocations().size(), 1);
+        assertEquals(result.getMethodInvocations().get(0).getMethodInvocations().get(0).getMethodInvocations().size(), 1);
+        assertEquals(result.getMethodInvocations().get(1).getMethodInvocations().get(0).getMethodInvocations().size(), 1);
+        assertEquals(result.getMethodInvocations().get(0).getMethodInvocations().get(0).getMethodInvocations().get(0).getMethodInvocations().size(), 0);
+        assertEquals(result.getMethodInvocations().get(1).getMethodInvocations().get(0).getMethodInvocations().get(0).getMethodInvocations().size(), 0);
+        assertEquals("com.pkg.InnerAAA", result.getMethodInvocations().get(0).getMethodInvocations().get(0).getMethodInvocations().get(0).getType());
+        assertEquals("com.pkg.InnerAAA", result.getMethodInvocations().get(1).getMethodInvocations().get(0).getMethodInvocations().get(0).getType());
     }
 
 }
