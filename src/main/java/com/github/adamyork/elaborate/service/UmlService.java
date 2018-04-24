@@ -14,6 +14,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -59,16 +60,15 @@ public class UmlService {
     private String buildUmlString(final MethodInvocation methodInvocation, final String id, final int index) {
         final StringBuilder output = new StringBuilder();
         final String nextId = id + "D" + index;
-        final String color;
-        if (methodInvocation.discreet()) {
-            color = "";
-        } else {
+        final String color = Optional.of("").map(defaultColor -> {
             if (methodInvocation.matches()) {
-                color = " #Green";
-            } else {
-                color = " #Red";
+                return " #LightGreen";
             }
-        }
+            if (methodInvocation.discreet()) {
+                return defaultColor;
+            }
+            return " #LightSkyBlue";
+        }).orElse("");
         final String componentString = "component " + nextId + color + " [";
         final String classNameString = methodInvocation.getType();
         final String packageSubstring = classNameString.substring(0, classNameString.lastIndexOf("."));
