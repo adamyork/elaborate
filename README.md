@@ -29,20 +29,22 @@ java -jar elaborate.jar -c "<path to config file>.json" -v
 ### configuration consists of
 
 * input the path to the input source. can be a jar or war **required**
-* entryClass fully qualified class name ; root node **required**
-* entryMethod starting method; root invocation **required**
-* output the output path and file. txt and svg supported.if omitted output will be to console. **optional**
+* entryClass list of fully qualified class names; root node **required**
+* entryMethod list of starting methods; root invocation **required**
+* output list of output paths and files. txt and svg supported.if omitted output will be to console. **optional**
 * includes any additional jars contained within the input source. **optional**
 * excludes any classes to exclude from processing **optional**
 * implicitMethod in the case of new object instantiation, these methods will be added to the call chain. **optional**
+
+**entryClass and entryMethod entries are one-to-one and order dependent.**
 
 
 ````json
 {
     "input": "/path/to/someFile.war",
-    "entryClass": "com.some.package.SomeClass",
-    "entryMethod": "someMethod",
-    "output": "/path/to/someOutput.svg",
+    "entryClass": ["com.some.package.SomeClass"],
+    "entryMethod": ["someMethod"],
+    "output": ["/path/to/someOutput.svg"],
     "includes": [
         "name-of-additional-jar"
     ],
