@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -130,17 +131,15 @@ class Elaborator {
         final String[] parts = normalizedLine.split(":\\(");
         final String methodReference = parts[0];
         final String right = parts[1];
-        final String[] argumentsParts = right.split(";\\)|;Z\\)");
-        final String arguments = trimArguments(argumentsParts);
-
-        final String[] maybeArguments = methodReference.split("\\.");
+        final String arguments = buildArgumentAsString(right);
+        final String[] maybeMethodRefClassName = methodReference.split("\\.");
 
         final MethodInvocation methodInvocation;
-        if (maybeArguments.length == 1) {
-            methodInvocation = new MethodInvocation.Builder(classMetadata.getClassName(), maybeArguments[0], arguments).build();
+        if (maybeMethodRefClassName.length == 1) {
+            methodInvocation = new MethodInvocation.Builder(classMetadata.getClassName(), maybeMethodRefClassName[0], arguments).build();
         } else {
-            final String callObjectClassName = maybeArguments[0].replaceAll("/", ".");
-            methodInvocation = new MethodInvocation.Builder(callObjectClassName, maybeArguments[1], arguments).build();
+            final String callObjectClassName = maybeMethodRefClassName[0].replaceAll("/", ".");
+            methodInvocation = new MethodInvocation.Builder(callObjectClassName, maybeMethodRefClassName[1], arguments).build();
         }
 
         final Optional<ClassMetadata> invocationClassMetadata = classMetadataList.stream()
@@ -263,11 +262,34 @@ class Elaborator {
                 .collect(Collectors.toList());
     }
 
-    private String trimArguments(final String[] argumentParts) {
-        if (argumentParts.length != 1) {
-            return argumentParts[0].substring(1);
-        }
-        return "";
+    private String buildArgumentAsString(final String input) {
+        final List<String> individualArguments = Arrays.asList(input.split(";"));
+        final String grouped = individualArguments.stream().map(arg -> {
+            if (arg.contains(")")) {
+                return arg.split("\\)")[0];
+            }
+            return arg;
+        }).collect(Collectors.joining(";"));
+        final List<String> groups = new ArrayList<>();
+        groups.add(grouped);
+        return groups.stream().map(arg -> {
+            if (arg.indexOf("[L") == 0) {
+                return arg.substring(2);
+            }
+            return arg;
+        }).map(arg -> {
+            if (arg.indexOf("L") == 0) {
+                return arg.substring(1);
+            }
+            return arg;
+        }).map(arg -> {
+            if (arg.length() > 1) {
+                if (arg.substring(arg.length() - 1).equals(";")) {
+                    return arg.substring(0, arg.length() - 1);
+                }
+            }
+            return arg;
+        }).findFirst().orElse("");
     }
 
 }

@@ -16,6 +16,7 @@ public class ParserPatterns {
         return maybeMethodArgs.map(methodArgs -> {
             final String replaced = methodArgs.replace("/", ".")
                     .replace(";IL", ",int,")
+                    .replace(";Z", ",boolean")
                     .replace(";L", ",")
                     .replace(";", ",");
             final List<String> allArguments = List.of(replaced.split(","));
