@@ -14,9 +14,9 @@ import java.util.List;
 public class Config {
 
     private final String input;
-    private final String entryClass;
-    private final String entryMethod;
-    private final String output;
+    private final List<String> entryClass;
+    private final List<String> entryMethod;
+    private final List<String> output;
     private final List<String> includes;
     private final List<String> excludes;
     private final List<String> implicitMethods;
@@ -37,15 +37,15 @@ public class Config {
         return input;
     }
 
-    public String getEntryClass() {
+    public List<String> getEntryClass() {
         return entryClass;
     }
 
-    public String getEntryMethod() {
+    public List<String> getEntryMethod() {
         return entryMethod;
     }
 
-    public String getOutput() {
+    public List<String> getOutput() {
         return output;
     }
 
@@ -70,18 +70,18 @@ public class Config {
     public static class Builder {
 
         private final String input;
-        private final String entryClass;
-        private final String entryMethod;
-        private final String output;
+        private final List<String> entryClass;
+        private final List<String> entryMethod;
+        private final List<String> output;
         private final List<String> includes;
         private final List<String> excludes;
         private final List<String> implicitMethods;
         private final List<String> whiteList;
 
         public Builder(@JsonProperty("input") final String input,
-                       @JsonProperty("entryClass") final String entryClass,
-                       @JsonProperty("entryMethod") final String entryMethod,
-                       @JsonProperty("output") final String output,
+                       @JsonProperty("entryClass") final List<String> entryClass,
+                       @JsonProperty("entryMethod") final List<String> entryMethod,
+                       @JsonProperty("output") final List<String> output,
                        @JsonProperty("includes") final List<String> includes,
                        @JsonProperty("excludes") final List<String> excludes,
                        @JsonProperty("implicitMethods") final List<String> implicitMethods,

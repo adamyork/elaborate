@@ -19,12 +19,14 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.jooq.lambda.Unchecked;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.IntStream;
 
 /**
  * Created by Adam York on 3/9/2018.
@@ -70,52 +72,59 @@ public class Main {
         }
 
         final String inputPath = config.getInput();
-        final String className = config.getEntryClass();
-        final String methodName = config.getEntryMethod();
+        final List<String> classNames = config.getEntryClass();
+        final List<String> methodNames = config.getEntryMethod();
         final List<String> includes = config.getIncludes();
         final List<String> excludes = config.getExcludes();
         final List<String> implicitMethods = config.getImplicitMethods();
         final Optional<List<String>> maybeWhiteList = Optional.ofNullable(config.getWhiteList());
-        final Optional<String> outputFilePathOptional = Optional.ofNullable(config.getOutput());
+        final Optional<List<String>> outputFilePathOptional = Optional.ofNullable(config.getOutput());
 
-        LOG.info("elaborating " + className + "::" + methodName);
-        LOG.debug("config---------------------------------");
-        LOG.debug("includes " + includes.toString());
-        LOG.debug("excludes " + excludes.toString());
-        LOG.debug("implicitMethods " + implicitMethods.toString());
-        LOG.debug("maybeWhiteList " + maybeWhiteList.toString());
-        LOG.debug("outputFilePathOptional " + outputFilePathOptional.toString());
-        LOG.debug("---------------------------------------");
+        final int exitCode = IntStream.range(0, classNames.size()).map(index -> {
 
-        final Elaborator elaborator = new Elaborator(inputPath, className, methodName,
-                includes, excludes, implicitMethods);
-        final List<MethodInvocation> methodInvocations = elaborator.run();
-        final WhiteListService whiteListService = new WhiteListService();
-        LOG.info("applying filters");
-        final List<MethodInvocation> maybeFiltered = whiteListService.manageList(methodInvocations, maybeWhiteList,
-                className, methodName);
+            final String className = classNames.get(index);
+            final String methodName = methodNames.get(index);
 
-        if (outputFilePathOptional.isPresent()) {
-            final String outputFilePath = outputFilePathOptional.get();
-            if (outputFilePath.contains(".svg")) {
-                LOG.info("writing svg output");
-                final UmlService umlService = new UmlService(className, methodName, outputFilePath);
-                umlService.write(maybeFiltered);
+            LOG.info("elaborating " + className + "::" + methodName);
+            LOG.debug("config---------------------------------");
+            LOG.debug("includes " + includes.toString());
+            LOG.debug("excludes " + excludes.toString());
+            LOG.debug("implicitMethods " + implicitMethods.toString());
+            LOG.debug("maybeWhiteList " + maybeWhiteList.toString());
+            LOG.debug("outputFilePathOptional " + outputFilePathOptional.toString());
+            LOG.debug("---------------------------------------");
+
+            final Elaborator elaborator = new Elaborator(inputPath, className, methodName,
+                    includes, excludes, implicitMethods);
+            final List<MethodInvocation> methodInvocations = elaborator.run();
+            final WhiteListService whiteListService = new WhiteListService();
+            LOG.info("applying filters");
+            final List<MethodInvocation> maybeFiltered = whiteListService.manageList(methodInvocations, maybeWhiteList,
+                    className, methodName);
+
+            if (outputFilePathOptional.isPresent()) {
+                final List<String> outputFilePath = outputFilePathOptional.get();
+                if (outputFilePath.get(index).contains(".svg")) {
+                    LOG.info("writing svg output");
+                    final UmlService umlService = new UmlService(className, methodName, outputFilePath.get(index));
+                    Unchecked.consumer(o -> umlService.write(maybeFiltered)).accept(null);
+                    LOG.info("elaboration complete");
+                    return 0;
+                }
+                LOG.info("writing text output");
+                final TextService textService = new TextService();
+                textService.write(className, methodName, outputFilePath.get(index), maybeFiltered, 0,
+                        new WriterMemo.Builder("").build());
                 LOG.info("elaboration complete");
-                System.exit(0);
+                return 0;
             }
-            LOG.info("writing text output");
-            final TextService textService = new TextService();
-            textService.write(className, methodName, outputFilePath, maybeFiltered, 0,
-                    new WriterMemo.Builder("").build());
-            LOG.info("elaboration complete");
-            System.exit(0);
-        }
 
-        final ConsoleService consoleService = new ConsoleService();
-        consoleService.print(className, methodName, maybeFiltered, 0);
-        LOG.info("elaboration complete");
-        System.exit(0);
+            final ConsoleService consoleService = new ConsoleService();
+            consoleService.print(className, methodName, maybeFiltered, 0);
+            LOG.info("elaboration complete");
+            return 0;
+        }).sum();
+        System.exit(exitCode);
     }
 
 }
