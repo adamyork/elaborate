@@ -15,6 +15,8 @@ public class ParserPatterns {
     public static Pattern buildMethodLocatorPattern(final String methodNameReference, final Optional<String> maybeMethodArgs) {
         return maybeMethodArgs.map(methodArgs -> {
             final String replaced = methodArgs.replace("/", ".")
+                    .replace("JL", "long,")
+                    .replace("[L", "")
                     .replace(";IL", ",int,")
                     .replace(";Z", ",boolean")
                     .replace(";L", ",")

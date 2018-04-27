@@ -102,7 +102,7 @@ class Elaborator {
         LOG.debug("found " + filtered.size() + " invocations");
 
         return filtered.stream()
-                .map(line -> lineToMethodInvocation(line, classMetadata, classMetadataList))
+                .map(line -> lineToMethodInvocation(line, classMetadata, classMetadataList, methodNameReference))
                 .collect(Collectors.toList());
     }
 
@@ -126,7 +126,8 @@ class Elaborator {
     }
 
     private MethodInvocation lineToMethodInvocation(final String line, final ClassMetadata classMetadata,
-                                                    final List<ClassMetadata> classMetadataList) {
+                                                    final List<ClassMetadata> classMetadataList,
+                                                    final String parentMethodInvocationName) {
         final String normalizedLine = line.replace("\"[L", "").replace(";\"", "");
         final String[] parts = normalizedLine.split(":\\(");
         final String methodReference = parts[0];
@@ -152,6 +153,10 @@ class Elaborator {
 
         final ClassMetadata maybeInterfaceClassMetadata = invocationClassMetadata.get();
         if (maybeInterfaceClassMetadata.isInterface()) {
+            if (methodInvocation.getMethod().equals(parentMethodInvocationName)) {
+                LOG.debug("interface invocation is same as parent invocation. skipping.");
+                return methodInvocation;
+            }
             LOG.debug("interface " + maybeInterfaceClassMetadata.getClassName() + " found in invocation list");
             return processPossibleImplementations(classMetadataList, maybeInterfaceClassMetadata, methodInvocation);
         } else {
