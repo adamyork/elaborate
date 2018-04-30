@@ -18,6 +18,7 @@ public class ParserPatterns {
                     .replace("JL", "long,")
                     .replace("[L", "")
                     .replace(";IL", ",int,")
+                    .replace(";ZL", ",boolean,")
                     .replace(";Z", ",boolean")
                     .replace(";L", ",")
                     .replace(";", ",");
