@@ -25,7 +25,6 @@ java -jar elaborate.jar -c "<path to config file>.json" -v
 * -c --config "<path to config file>.json"  configuration file **required**
 * -v --verbose enabled verbose logging **optional**
 
-
 ### configuration consists of
 
 * input the path to the input source. can be a jar or war **required**
@@ -35,9 +34,9 @@ java -jar elaborate.jar -c "<path to config file>.json" -v
 * includes any additional jars contained within the input source. **optional**
 * excludes any classes to exclude from processing **optional**
 * implicitMethod in the case of new object instantiation, these methods will be added to the call chain. **optional**
+* whiteList filters only nodes containing refrences to classes and methods specified **optional**
 
 **entryClass and entryMethod entries are one-to-one and order dependent.**
-
 
 ````json
 {
@@ -62,21 +61,31 @@ java -jar elaborate.jar -c "<path to config file>.json" -v
         "execute",
         "apply",
         "call"
+    ],
+    "whiteList":[
+        "com.some.package.SomeOtherClass::someExitMethod"
     ]
 }
 ````
-
-
 ### sample output
 
-
-text
-
-
-
-svg
-
-
+#### text
+````text
+com.github.adamyork.fx5p1d3r.application.view.control.ControlController::handleStart calls
+    com.github.adamyork.fx5p1d3r.application.view.control.command.ControlStartCommand::execute calls
+        com.github.adamyork.fx5p1d3r.common.command.ApplicationCommand::execute calls
+            com.github.adamyork.fx5p1d3r.application.command.url.UrlValidatorCommand::execute calls
+                com.github.adamyork.fx5p1d3r.common.command.ApplicationCommand::execute calls
+                    com.github.adamyork.fx5p1d3r.common.command.io.ParserCommand::execute
+                    com.github.adamyork.fx5p1d3r.common.command.io.ParserCommand::execute
+            com.github.adamyork.fx5p1d3r.common.command.alert.AlertCommand::execute calls
+                com.github.adamyork.fx5p1d3r.application.command.url.UrlValidatorCommand::execute calls
+                    com.github.adamyork.fx5p1d3r.common.command.ApplicationCommand::execute calls
+                        com.github.adamyork.fx5p1d3r.common.command.io.ParserCommand::execute
+                        com.github.adamyork.fx5p1d3r.common.command.io.ParserCommand::execute
+````
+#### svg
+![sample svg output](sample/spider.svg?raw=true "sample svg output")
 
 #### limitations
 
