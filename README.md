@@ -85,7 +85,8 @@ com.github.adamyork.fx5p1d3r.application.view.control.ControlController::handleS
                         com.github.adamyork.fx5p1d3r.common.command.io.ParserCommand::execute
 ````
 #### svg
-![sample svg output](sample/spider.svg?raw=true "sample svg output")
+**note output format is actually svg**
+![sample svg output](sample/spider.png?raw=true "sample svg output")
 
 #### limitations
 
