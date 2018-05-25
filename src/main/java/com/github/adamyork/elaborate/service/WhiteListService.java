@@ -26,7 +26,7 @@ public class WhiteListService {
                     .filter(invocation -> invocation.getType().equals(classAndMethod))
                     .collect(Collectors.toList());
             final MethodInvocation postFilteredNode = new MethodInvocation.Builder(node.getType(), node.getMethod(),
-                    node.getArguments(), true, node.discreet(), pruned).build();
+                    node.getArguments(), true, node.maybe(), pruned).build();
             return Optional.of(postFilteredNode);
         }
         final List<MethodInvocation> filtered = node.getMethodInvocations().stream()

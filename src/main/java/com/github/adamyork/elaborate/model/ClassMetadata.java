@@ -1,6 +1,7 @@
 package com.github.adamyork.elaborate.model;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Created by Adam York on 3/12/2018.
@@ -13,6 +14,7 @@ public class ClassMetadata {
     private final String superClass;
     private final boolean isInterface;
     private final List<String> interfaces;
+    private final Map<String, String> methodReferences;
 
     private ClassMetadata(final Builder builder) {
         this.className = builder.className;
@@ -20,6 +22,7 @@ public class ClassMetadata {
         this.superClass = builder.superClass;
         this.isInterface = builder.isInterface;
         this.interfaces = builder.interfaces;
+        this.methodReferences = builder.methodReferences;
     }
 
     public String getClassName() {
@@ -42,6 +45,10 @@ public class ClassMetadata {
         return interfaces;
     }
 
+    public Map<String, String> getMethodReferences() {
+        return methodReferences;
+    }
+
     public static class Builder {
 
         private final String className;
@@ -49,17 +56,20 @@ public class ClassMetadata {
         private final String superClass;
         private final boolean isInterface;
         private final List<String> interfaces;
+        private final Map<String, String> methodReferences;
 
         public Builder(final String className,
                        final String classContent,
                        final String superClass,
                        final boolean isInterface,
-                       final List<String> interfaces) {
+                       final List<String> interfaces,
+                       final Map<String, String> methodReferences) {
             this.className = className;
             this.classContent = classContent;
             this.superClass = superClass;
             this.isInterface = isInterface;
             this.interfaces = interfaces;
+            this.methodReferences = methodReferences;
         }
 
         public ClassMetadata build() {

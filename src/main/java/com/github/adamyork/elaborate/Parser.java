@@ -6,19 +6,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.lambda.Unchecked;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.io.PrintStream;
+import java.io.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Enumeration;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.regex.Matcher;
@@ -104,9 +95,9 @@ public class Parser {
                 closeStreams(contentsStream, errorStream, contentByteArrayStream, errorByteArrayStream);
                 return null;
             }
-            final ClassMetadata classMetadata = buildMetadata(trimmed, className);
             closeStreams(contentsStream, errorStream, contentByteArrayStream, errorByteArrayStream);
-            return classMetadata;
+            final Map<String, String> methodReferences = buildMethodReferences(file, toolProvider);
+            return buildMetadata(trimmed, className, methodReferences);
         }
         return null;
     }
@@ -121,7 +112,59 @@ public class Parser {
         Unchecked.consumer(o -> errorByteArrayStream.close()).accept(null);
     }
 
-    private ClassMetadata buildMetadata(final String content, final String className) {
+    private Map<String, String> buildMethodReferences(final File file, final ToolProvider toolProvider) {
+        final Charset charset = StandardCharsets.UTF_8;
+        final ByteArrayOutputStream contentByteArrayStream = new ByteArrayOutputStream();
+        final ByteArrayOutputStream errorByteArrayStream = new ByteArrayOutputStream();
+        final PrintStream contentsStream = Unchecked.function(t -> new PrintStream(contentByteArrayStream,
+                true, charset.name())).apply(null);
+        final PrintStream errorStream = Unchecked.function(t -> new PrintStream(errorByteArrayStream,
+                true, charset.name())).apply(null);
+        toolProvider.run(contentsStream, errorStream, "-c", "-p", "-v", "-constants", String.valueOf(file));
+        final String content = new String(contentByteArrayStream.toByteArray(), charset);
+        final String error = new String(errorByteArrayStream.toByteArray(), charset);
+        final String trimmed = content.replace(" ", "");
+        if (!error.isEmpty()) {
+            LOG.error(error);
+            closeStreams(contentsStream, errorStream, contentByteArrayStream, errorByteArrayStream);
+            return null;
+        }
+        final Pattern bootstrapMethodsStartPattern = Pattern.compile("BootstrapMethods:");
+        final Matcher bootstrapMethodsStartMatcher = bootstrapMethodsStartPattern.matcher(trimmed);
+        if (bootstrapMethodsStartMatcher.find()) {
+            final int bootstrapMethodsStartIndex = bootstrapMethodsStartMatcher.start();
+            final String bootStrapBlock = trimmed.substring(bootstrapMethodsStartIndex);
+            final Pattern referenceBlocksPattern = Pattern.compile("[0-9]+:(.*?)Methodarguments:", Pattern.DOTALL);
+            final Matcher referenceBlocksMatcher = referenceBlocksPattern.matcher(bootStrapBlock);
+            final Map<String, String> maybeReferenceMap = new HashMap<>();
+            int count = 0;
+            while (referenceBlocksMatcher.find()) {
+                final String linesToNextBlock = bootStrapBlock.substring(referenceBlocksMatcher.end());
+                final Pattern argumentsPattern = Pattern.compile("(.*?)[0-9]+:#", Pattern.DOTALL);
+                final Matcher argumentsMatcher = argumentsPattern.matcher(linesToNextBlock);
+                if (argumentsMatcher.find()) {
+                    final String arguments = argumentsMatcher.group();
+                    final String[] lines = arguments.split("\n");
+                    maybeReferenceMap.put(Integer.toString(count), lines[2]);
+                    count++;
+                    continue;
+                }
+                if (!linesToNextBlock.isEmpty()) {
+                    final String[] lines = linesToNextBlock.split("\n");
+                    maybeReferenceMap.put(Integer.toString(count), lines[2]);
+                    count++;
+                }
+            }
+            closeStreams(contentsStream, errorStream, contentByteArrayStream, errorByteArrayStream);
+            return maybeReferenceMap;
+        }
+        closeStreams(contentsStream, errorStream, contentByteArrayStream, errorByteArrayStream);
+        return null;
+    }
+
+    private ClassMetadata buildMetadata(final String content,
+                                        final String className,
+                                        final Map<String, String> methodReferences) {
         boolean isInterface = false;
         final String normalizedClassName = className.replace("$", "\\$");
         final Pattern isInterfacePattern = Pattern.compile("publicinterface.*" + normalizedClassName);
@@ -151,7 +194,7 @@ public class Parser {
             interfaces.addAll(interfaceStrings);
         }
 
-        return new ClassMetadata.Builder(className, content, superClass, isInterface, interfaces).build();
+        return new ClassMetadata.Builder(className, content, superClass, isInterface, interfaces, methodReferences).build();
     }
 
     private List<String> buildStringsList(final String input) {

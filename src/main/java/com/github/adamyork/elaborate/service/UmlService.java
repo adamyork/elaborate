@@ -64,10 +64,10 @@ public class UmlService {
             if (methodInvocation.matches()) {
                 return " #LightGreen";
             }
-            if (methodInvocation.discreet()) {
-                return defaultColor;
+            if (methodInvocation.maybe()) {
+                return " #LightBlue";
             }
-            return " #LightSkyBlue";
+            return defaultColor;
         }).orElse("");
         final String componentString = "component " + nextId + color + " [";
         final String classNameString = methodInvocation.getType();

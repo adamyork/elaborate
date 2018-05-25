@@ -7,12 +7,10 @@ import filter.ParserPredicates;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.awt.*;
 import java.io.File;
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.*;
 import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -98,7 +96,8 @@ class Elaborator {
         final List<String> methodBodyLinesWithDynamicHoisted = mergeLambdaBodyLinesWithMethodLines(methodBodyLines,
                 classMetadata, methodBodyLocator);
 
-        final List<String> filtered = filterNonEssentialInternalsFromMethodLines(methodBodyLinesWithDynamicHoisted);
+        final List<String> filtered = filterNonEssentialInternalsFromMethodLines(methodBodyLinesWithDynamicHoisted
+                , classMetadata);
         LOG.debug("found " + filtered.size() + " invocations");
 
         return filtered.stream()
@@ -119,7 +118,8 @@ class Elaborator {
                 return metadata.getClassName().equals(classMetadata.getSuperClass().substring(0, genericIndex));
             }).findFirst();
             return superClassMetadata
-                    .map(metadata -> findInvocationsInMethod(metadata, classMetadataList, methodNameReference, ""))
+                    .map(metadata -> findInvocationsInMethod(metadata, classMetadataList, methodNameReference,
+                            ""))
                     .or(() -> Optional.of(new ArrayList<>())).get();
         }
         return new ArrayList<>();
@@ -133,13 +133,13 @@ class Elaborator {
         final String right = parts[1];
         final String arguments = buildArgumentAsString(right);
         final String[] maybeMethodRefClassName = methodReference.split("\\.");
-
         final MethodInvocation methodInvocation;
+
         if (maybeMethodRefClassName.length == 1) {
-            methodInvocation = new MethodInvocation.Builder(classMetadata.getClassName(), maybeMethodRefClassName[0], arguments).build();
+            methodInvocation = new MethodInvocation.Builder(classMetadata.getClassName(), maybeMethodRefClassName[0], arguments, new ArrayList<>()).build();
         } else {
             final String callObjectClassName = maybeMethodRefClassName[0].replaceAll("/", ".");
-            methodInvocation = new MethodInvocation.Builder(callObjectClassName, maybeMethodRefClassName[1], arguments).build();
+            methodInvocation = new MethodInvocation.Builder(callObjectClassName, maybeMethodRefClassName[1], arguments, new ArrayList<>()).build();
         }
 
         final Optional<ClassMetadata> invocationClassMetadata = classMetadataList.stream()
@@ -178,11 +178,12 @@ class Elaborator {
                 .filter(metadata -> !metadata.getClassName().equals(parentClassMetadata.getClassName()))
                 .collect(Collectors.toList());
         final List<MethodInvocation> aggregateInvocations = implementations.stream()
-                .map(impl -> findInvocationsInMethod(impl, classMetadataList, methodInvocation.getMethod(),
-                        methodInvocation.getArguments()))
-                .flatMap(List::stream)
-                .map(impl -> new MethodInvocation.Builder(impl.getType(), impl.getMethod(),
-                        impl.getArguments(), impl.getMethodInvocations()).discreet(false).build())
+                .map(impl -> {
+                    final List<MethodInvocation> invocations = findInvocationsInMethod(impl, classMetadataList,
+                            methodInvocation.getMethod(), methodInvocation.getArguments());
+                    return new MethodInvocation.Builder(impl.getClassName(), methodInvocation.getMethod(),
+                            methodInvocation.getArguments(), true, invocations).build();
+                })
                 .collect(Collectors.toList());
         return new MethodInvocation.Builder(methodInvocation.getType(), methodInvocation.getMethod(),
                 methodInvocation.getArguments(), aggregateInvocations).build();
@@ -252,7 +253,8 @@ class Elaborator {
                 .collect(Collectors.toList());
     }
 
-    private List<String> filterNonEssentialInternalsFromMethodLines(final List<String> methodBodyLines) {
+    private List<String> filterNonEssentialInternalsFromMethodLines(final List<String> methodBodyLines,
+                                                                    final ClassMetadata classMetadata) {
         return methodBodyLines.stream()
                 .filter(ParserPredicates.invocationIsSupported())
                 .map(line -> line.replaceAll("^.*invokevirtual.*//Method", ""))
@@ -260,10 +262,25 @@ class Elaborator {
                 .map(line -> line.replaceAll("^.*invokestatic.*//Method", ""))
                 .map(line -> line.replaceAll("^.*invokestatic.*//InterfaceMethod", ""))
                 .map(line -> line.replaceAll("^.*invokespecial.*//Method", ""))
-                .map(line -> line.replaceAll("^.*invokedynamic.*//InvokeDynamic#[0-9]+:", "a/dynamic/pkg/Lambda."))
+                .map(line -> hoistMethodReferences(line, classMetadata))
                 .filter(ParserPredicates.invocationIsNotAlsoImplied(implicitMethod))
                 .filter(ParserPredicates.invocationIsNotExcluded(excludes))
                 .collect(Collectors.toList());
+    }
+
+    private String hoistMethodReferences(final String line, final ClassMetadata classMetadata) {
+        final Pattern bootstrapMethodReferencePattern = Pattern.compile("InvokeDynamic#[0-9]+:");
+        final Matcher bootstrapMethodReferenceMatcher = bootstrapMethodReferencePattern.matcher(line);
+        if (bootstrapMethodReferenceMatcher.find()) {
+            final String[] parts = bootstrapMethodReferenceMatcher.group().split("InvokeDynamic#");
+            final String methodReference = classMetadata.getMethodReferences().get(parts[1].replace(":", ""));
+            final String noRef = methodReference.replaceAll("#[0-9]+REF_", "");
+            final String noVirtual = noRef.replace("invokeVirtual", "");
+            final String noInterface = noVirtual.replace("invokeInterface", "");
+            final String noStatic = noInterface.replace("invokeStatic", "");
+            return noStatic.replace("invokeSpecial", "");
+        }
+        return line.replaceAll("^.*invokedynamic.*//InvokeDynamic#[0-9]+:", "a/dynamic/pkg/Lambda.");
     }
 
     private String buildArgumentAsString(final String input) {
@@ -294,6 +311,13 @@ class Elaborator {
             }
             return arg;
         }).findFirst().orElse("");
+    }
+
+    private String adjustColorValue(final String colorHexValue) {
+        final Color color = Color.decode(colorHexValue);
+        final Color brighter = color.brighter();
+        final String hex = Integer.toHexString(brighter.getRGB());
+        return "#" + hex.substring(2, hex.length());
     }
 
 }
