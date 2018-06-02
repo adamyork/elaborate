@@ -9,11 +9,8 @@ import org.apache.logging.log4j.Logger;
 
 import java.awt.*;
 import java.io.File;
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.*;
 import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -30,6 +27,7 @@ class Elaborator {
     private final String inputPath;
     private final String className;
     private final String methodName;
+    private final String methodArgs;
     private final List<String> includes;
     private final List<String> excludes;
     private final List<String> implicitMethod;
@@ -37,12 +35,14 @@ class Elaborator {
     Elaborator(final String inputPath,
                final String className,
                final String methodName,
+               final String methodArgs,
                final List<String> includes,
                final List<String> excludes,
                final List<String> implicitMethods) {
         this.inputPath = inputPath;
         this.className = className;
         this.methodName = methodName;
+        this.methodArgs = methodArgs;
         this.includes = includes;
         this.excludes = excludes;
         this.implicitMethod = implicitMethods;
@@ -58,7 +58,7 @@ class Elaborator {
                 .findFirst();
         LOG.info("building invocation tree");
         return targetMetadata.map(metadata -> findInvocationsInMethod(metadata,
-                classMetadataList, methodName, ""))
+                classMetadataList, methodName, methodArgs))
                 .or(() -> Optional.of(new ArrayList<>()))
                 .get();
     }
@@ -85,21 +85,18 @@ class Elaborator {
             return new ArrayList<>();
         }
 
-        final Pattern methodBodyEndLocator = ParserPatterns.buildMethodBodyEndLocatorPattern();
+        final Pattern multiMethodBodyEndLocator = ParserPatterns.buildMultiMethodBodyEndLocatorPattern();
         final String methodBodyToEof = methodBodyMatcher.group();
-        final Matcher methodBodyEndMatcher = methodBodyEndLocator.matcher(methodBodyToEof);
+        final Matcher multiMethodBodyEndMatcher = multiMethodBodyEndLocator.matcher(methodBodyToEof);
 
-        int methodEnd = 0;
-        while (methodBodyEndMatcher.find()) {
-            methodEnd = methodBodyEndMatcher.end();
-        }
+        final Optional<String> maybeMethodBody = getMethodBody(methodBodyToEof, multiMethodBodyEndMatcher);
 
-        if (methodEnd == 0) {
+        if (!maybeMethodBody.isPresent()) {
             LOG.debug("no end of body found for " + methodNameReference + " on class " + classMetadata.getClassName());
             return new ArrayList<>();
         }
 
-        final String methodBody = methodBodyToEof.substring(0, methodEnd);
+        final String methodBody = maybeMethodBody.get();
         final List<String> methodBodyLines = List.of(methodBody.split("\n"));
         final List<String> methodBodyLinesWithDynamicHoisted = mergeLambdaBodyLinesWithMethodLines(methodBodyLines,
                 classMetadata, methodBodyLocator);
@@ -111,6 +108,19 @@ class Elaborator {
         return filtered.stream()
                 .map(line -> lineToMethodInvocation(line, classMetadata, classMetadataList))
                 .collect(Collectors.toList());
+    }
+
+    private Optional<String> getMethodBody(final String methodBodyToEof,
+                                           final Matcher multiMethodBodyEndMatcher) {
+        if (!multiMethodBodyEndMatcher.find()) {
+            final Pattern singleMethodBodyEndLocator = ParserPatterns.buildSingleMethodBodyEndLocatorPattern();
+            final Matcher singleMethodBodyEndMatcher = singleMethodBodyEndLocator.matcher(methodBodyToEof);
+            if (!singleMethodBodyEndMatcher.find()) {
+                return Optional.empty();
+            }
+            return Optional.of(methodBodyToEof.substring(0, singleMethodBodyEndMatcher.end()));
+        }
+        return Optional.of(methodBodyToEof.substring(0, multiMethodBodyEndMatcher.end()));
     }
 
     private List<MethodInvocation> getSuperClassInvocations(final ClassMetadata classMetadata,
@@ -248,7 +258,8 @@ class Elaborator {
                     }
 
                     final String lambdaBody = lambdaBodyMatcher.group();
-                    final Pattern lambdaRefContentPattern = ParserPatterns.buildMethodBodyEndLocatorPattern();
+                    //TODO this this may need multi and single support
+                    final Pattern lambdaRefContentPattern = ParserPatterns.buildSingleMethodBodyEndLocatorPattern();
                     final Matcher lambdaRefContentBody = lambdaRefContentPattern.matcher(lambdaBody);
                     if (lambdaRefContentBody.find()) {
                         final String lambdaRefMethodBlock = lambdaBody.substring(0, lambdaRefContentBody.end());

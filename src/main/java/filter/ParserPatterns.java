@@ -35,9 +35,16 @@ public class ParserPatterns {
         }).or(() -> Optional.of(Pattern.compile(methodNameReference + "\\(.*\\);"))).get();
     }
 
-    public static Pattern buildMethodBodyEndLocatorPattern() {
+    public static Pattern buildMultiMethodBodyEndLocatorPattern() {
         if (System.getProperty("os.name").toLowerCase().contains("win")) {
-            return Pattern.compile("return\\s", Pattern.MULTILINE);
+            return Pattern.compile("Code:(.*?)return\\r\\n\\r\\n", Pattern.DOTALL);
+        }
+        return Pattern.compile("return$", Pattern.MULTILINE);
+    }
+
+    public static Pattern buildSingleMethodBodyEndLocatorPattern() {
+        if (System.getProperty("os.name").toLowerCase().contains("win")) {
+            return Pattern.compile("Code:(.*)return\\r", Pattern.DOTALL);
         }
         return Pattern.compile("return$", Pattern.MULTILINE);
     }

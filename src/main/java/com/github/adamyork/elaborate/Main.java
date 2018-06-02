@@ -8,13 +8,7 @@ import com.github.adamyork.elaborate.service.ConsoleService;
 import com.github.adamyork.elaborate.service.TextService;
 import com.github.adamyork.elaborate.service.UmlService;
 import com.github.adamyork.elaborate.service.WhiteListService;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.DefaultParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
+import org.apache.commons.cli.*;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -78,7 +72,8 @@ public class Main {
         final List<String> excludes = config.getExcludes();
         final List<String> implicitMethods = config.getImplicitMethods();
         final Optional<List<String>> maybeWhiteList = Optional.ofNullable(config.getWhiteList());
-        final Optional<List<String>> outputFilePathOptional = Optional.ofNullable(config.getOutput());
+        final Optional<List<String>> maybeOutputFilePath = Optional.ofNullable(config.getOutput());
+        final Optional<List<String>> maybeEntryMethodArgs = Optional.ofNullable(config.getEntryMethodArgs());
 
         final int exitCode = IntStream.range(0, classNames.size()).map(index -> {
 
@@ -91,10 +86,13 @@ public class Main {
             LOG.debug("excludes " + excludes.toString());
             LOG.debug("implicitMethods " + implicitMethods.toString());
             LOG.debug("maybeWhiteList " + maybeWhiteList.toString());
-            LOG.debug("outputFilePathOptional " + outputFilePathOptional.toString());
+            LOG.debug("maybeOutputFilePath " + maybeOutputFilePath.toString());
+            LOG.debug("maybeEntryMethodArgs " + maybeEntryMethodArgs.toString());
             LOG.debug("---------------------------------------");
 
-            final Elaborator elaborator = new Elaborator(inputPath, className, methodName,
+            final String entryMethodArgs = maybeEntryMethodArgs.map(strings -> strings.get(index)).orElse("");
+
+            final Elaborator elaborator = new Elaborator(inputPath, className, methodName, entryMethodArgs,
                     includes, excludes, implicitMethods);
             final List<MethodInvocation> methodInvocations = elaborator.run();
             final WhiteListService whiteListService = new WhiteListService();
@@ -102,8 +100,8 @@ public class Main {
             final List<MethodInvocation> maybeFiltered = whiteListService.manageList(methodInvocations, maybeWhiteList,
                     className, methodName);
 
-            if (outputFilePathOptional.isPresent()) {
-                final List<String> outputFilePath = outputFilePathOptional.get();
+            if (maybeOutputFilePath.isPresent()) {
+                final List<String> outputFilePath = maybeOutputFilePath.get();
                 if (outputFilePath.get(index).contains(".svg")) {
                     LOG.info("writing svg output");
                     final UmlService umlService = new UmlService(className, methodName, outputFilePath.get(index));

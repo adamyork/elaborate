@@ -16,6 +16,7 @@ public class Config {
     private final String input;
     private final List<String> entryClass;
     private final List<String> entryMethod;
+    private final List<String> entryMethodArgs;
     private final List<String> output;
     private final List<String> includes;
     private final List<String> excludes;
@@ -26,6 +27,7 @@ public class Config {
         this.input = builder.input;
         this.entryClass = builder.entryClass;
         this.entryMethod = builder.entryMethod;
+        this.entryMethodArgs = builder.entryMethodArgs;
         this.output = builder.output;
         this.includes = builder.includes;
         this.excludes = builder.excludes;
@@ -43,6 +45,10 @@ public class Config {
 
     public List<String> getEntryMethod() {
         return entryMethod;
+    }
+
+    public List<String> getEntryMethodArgs() {
+        return entryMethodArgs;
     }
 
     public List<String> getOutput() {
@@ -72,6 +78,7 @@ public class Config {
         private final String input;
         private final List<String> entryClass;
         private final List<String> entryMethod;
+        private final List<String> entryMethodArgs;
         private final List<String> output;
         private final List<String> includes;
         private final List<String> excludes;
@@ -81,6 +88,7 @@ public class Config {
         public Builder(@JsonProperty("input") final String input,
                        @JsonProperty("entryClass") final List<String> entryClass,
                        @JsonProperty("entryMethod") final List<String> entryMethod,
+                       @JsonProperty("entryMethodArgs") final List<String> entryMethodArgs,
                        @JsonProperty("output") final List<String> output,
                        @JsonProperty("includes") final List<String> includes,
                        @JsonProperty("excludes") final List<String> excludes,
@@ -89,6 +97,7 @@ public class Config {
             this.input = input;
             this.entryClass = entryClass;
             this.entryMethod = entryMethod;
+            this.entryMethodArgs = entryMethodArgs;
             this.output = output;
             this.includes = includes;
             this.excludes = excludes;
