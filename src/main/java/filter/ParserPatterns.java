@@ -21,6 +21,9 @@ public class ParserPatterns {
                     .replace("[L", "")
                     .replace(";IL", ",int,")
                     .replace(";ZL", ",boolean,")
+                    .replace(";ZZZZ", ",boolean,boolean,boolean,boolean")
+                    .replace(";ZZZ", ",boolean,boolean,boolean")
+                    .replace(";ZZ", ",boolean,boolean")
                     .replace(";Z", ",boolean")
                     .replace(";L", ",")
                     .replace(";", ",");

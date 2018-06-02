@@ -9,8 +9,11 @@ import org.apache.logging.log4j.Logger;
 
 import java.awt.*;
 import java.io.File;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -86,12 +89,17 @@ class Elaborator {
         final String methodBodyToEof = methodBodyMatcher.group();
         final Matcher methodBodyEndMatcher = methodBodyEndLocator.matcher(methodBodyToEof);
 
-        if (!methodBodyEndMatcher.find()) {
+        int methodEnd = 0;
+        while (methodBodyEndMatcher.find()) {
+            methodEnd = methodBodyEndMatcher.end();
+        }
+
+        if (methodEnd == 0) {
             LOG.debug("no end of body found for " + methodNameReference + " on class " + classMetadata.getClassName());
             return new ArrayList<>();
         }
 
-        final String methodBody = methodBodyToEof.substring(0, methodBodyEndMatcher.end());
+        final String methodBody = methodBodyToEof.substring(0, methodEnd);
         final List<String> methodBodyLines = List.of(methodBody.split("\n"));
         final List<String> methodBodyLinesWithDynamicHoisted = mergeLambdaBodyLinesWithMethodLines(methodBodyLines,
                 classMetadata, methodBodyLocator);
