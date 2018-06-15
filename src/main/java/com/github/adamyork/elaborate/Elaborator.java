@@ -9,8 +9,11 @@ import org.apache.logging.log4j.Logger;
 
 import java.awt.*;
 import java.io.File;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -77,29 +80,30 @@ class Elaborator {
         }
 
         final String methodIndexToEof = classMetadata.getClassContent().substring(methodLocatorMatcher.start());
-        final Pattern methodBodyLocator = Pattern.compile("(?s)Code:.*?(?=\\n\\n)|(?s)Code:.*?(?=\\n})");
-        final Matcher methodBodyMatcher = methodBodyLocator.matcher(methodIndexToEof);
 
-        if (!methodBodyMatcher.find()) {
-            LOG.debug("no body found for " + methodNameReference + " on class " + classMetadata.getClassName());
+        final Pattern methodBodyEndPattern = Pattern.compile("^[\\s\\S]*?(?=\\n{2,})");
+        final Matcher methodBodyEndMatcher = methodBodyEndPattern.matcher(methodIndexToEof);
+        final Optional<String> maybeMethodIndexToEndOfMethod = maybeGetMethodContents(methodBodyEndMatcher, methodIndexToEof);
+
+        if (!maybeMethodIndexToEndOfMethod.isPresent()) {
+            LOG.debug("no body end found for " + methodNameReference + " on class " + classMetadata.getClassName());
             return new ArrayList<>();
         }
 
-        final Pattern multiMethodBodyEndLocator = ParserPatterns.buildMultiMethodBodyEndLocatorPattern();
-        final String methodBodyToEof = methodBodyMatcher.group();
-        final Matcher multiMethodBodyEndMatcher = multiMethodBodyEndLocator.matcher(methodBodyToEof);
+        final String methodIndexToEndOfMethod = maybeMethodIndexToEndOfMethod.get();
 
-        final Optional<String> maybeMethodBody = getMethodBody(methodBodyToEof, multiMethodBodyEndMatcher);
+        final Pattern methodContentsStartPattern = Pattern.compile("Code:");
+        final Matcher methodContentsStartMatcher = methodContentsStartPattern.matcher(methodIndexToEndOfMethod);
 
-        if (!maybeMethodBody.isPresent()) {
-            LOG.debug("no end of body found for " + methodNameReference + " on class " + classMetadata.getClassName());
+        if (!methodContentsStartMatcher.find()) {
+            LOG.debug("no start of body contents found for " + methodNameReference + " on class " + classMetadata.getClassName());
             return new ArrayList<>();
         }
 
-        final String methodBody = maybeMethodBody.get();
+        final String methodBody = methodIndexToEndOfMethod.substring(methodContentsStartMatcher.start());
         final List<String> methodBodyLines = List.of(methodBody.split("\n"));
         final List<String> methodBodyLinesWithDynamicHoisted = mergeLambdaBodyLinesWithMethodLines(methodBodyLines,
-                classMetadata, methodBodyLocator);
+                classMetadata, Pattern.compile("(?s)Code:.*?(?=\\n\\n)|(?s)Code:.*?(?=\\n})"));
 
         final List<String> filtered = filterNonEssentialInternalsFromMethodLines(methodBodyLinesWithDynamicHoisted
                 , classMetadata);
@@ -110,17 +114,15 @@ class Elaborator {
                 .collect(Collectors.toList());
     }
 
-    private Optional<String> getMethodBody(final String methodBodyToEof,
-                                           final Matcher multiMethodBodyEndMatcher) {
-        if (!multiMethodBodyEndMatcher.find()) {
-            final Pattern singleMethodBodyEndLocator = ParserPatterns.buildSingleMethodBodyEndLocatorPattern();
-            final Matcher singleMethodBodyEndMatcher = singleMethodBodyEndLocator.matcher(methodBodyToEof);
-            if (!singleMethodBodyEndMatcher.find()) {
-                return Optional.empty();
+    private Optional<String> maybeGetMethodContents(final Matcher methodBodyEndMatcher, final String methodIndexToEof) {
+        if (!methodBodyEndMatcher.find()) {
+            final int lastReturn = methodIndexToEof.lastIndexOf("return");
+            if (lastReturn != -1) {
+                return Optional.of(methodIndexToEof.substring(0, lastReturn + "return".length()));
             }
-            return Optional.of(methodBodyToEof.substring(0, singleMethodBodyEndMatcher.end()));
+            return Optional.empty();
         }
-        return Optional.of(methodBodyToEof.substring(0, multiMethodBodyEndMatcher.end()));
+        return Optional.of(methodBodyEndMatcher.group());
     }
 
     private List<MethodInvocation> getSuperClassInvocations(final ClassMetadata classMetadata,
