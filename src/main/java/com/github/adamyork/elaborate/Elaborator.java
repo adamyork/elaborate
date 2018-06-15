@@ -7,7 +7,6 @@ import filter.ParserPredicates;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.awt.*;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -332,13 +331,6 @@ class Elaborator {
             }
             return arg;
         }).findFirst().orElse("");
-    }
-
-    private String adjustColorValue(final String colorHexValue) {
-        final Color color = Color.decode(colorHexValue);
-        final Color brighter = color.brighter();
-        final String hex = Integer.toHexString(brighter.getRGB());
-        return "#" + hex.substring(2, hex.length());
     }
 
 }
