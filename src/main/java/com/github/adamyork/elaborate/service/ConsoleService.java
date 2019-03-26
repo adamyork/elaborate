@@ -11,23 +11,24 @@ import java.util.List;
  */
 public class ConsoleService extends AbstractPrintService {
 
-    public void print(final String className, final String methodName, final List<MethodInvocation> methodInvocations,
-                      final int indentationLevel) {
+    public int print(final String className, final String methodName, final List<MethodInvocation> methodInvocations,
+                     final int indentationLevel) {
         final String initialTabs = StringUtils.repeat("\t", indentationLevel);
         final String immediateOutput = normalizeObjectCreation(className, methodName, " calls");
         System.out.println(initialTabs + immediateOutput);
         final int nextIndentationLevel = indentationLevel + 1;
         final String subsequentTabs = StringUtils.repeat("\t", indentationLevel + 1);
-        methodInvocations.forEach(methodInvocation -> {
+        return methodInvocations.stream().map(methodInvocation -> {
             if (methodInvocation.getMethodInvocations().size() > 0) {
-                print(methodInvocation.getType(), methodInvocation.getMethod(), methodInvocation.getMethodInvocations(),
+                return print(methodInvocation.getType(), methodInvocation.getMethod(), methodInvocation.getMethodInvocations(),
                         nextIndentationLevel);
             } else {
                 final String innerOutput = normalizeObjectCreation(methodInvocation.getType(),
                         methodInvocation.getMethod(), "");
                 System.out.println(subsequentTabs + innerOutput);
+                return 0;
             }
-        });
+        }).mapToInt(value -> value).sum();
     }
 
 }

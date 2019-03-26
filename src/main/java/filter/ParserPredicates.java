@@ -1,6 +1,7 @@
 package filter;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -33,16 +34,23 @@ public class ParserPredicates {
     public static Predicate<String> invocationIsNotAlsoImplied(final List<String> implicitMethod) {
         return line -> {
             final String[] leftOfSemiColon = line.split(":");
-            if (leftOfSemiColon.length == 0) {
-                return true;
-            }
-            final String firstLeftGroup = leftOfSemiColon[0];
-            final String[] selfInvocationGroups = firstLeftGroup.split("\\.");
-            if (selfInvocationGroups.length == 0 || selfInvocationGroups.length == 1) {
-                return true;
-            }
-            final String selfInvocation = selfInvocationGroups[1];
-            return implicitMethod.stream().noneMatch(include -> include.equals(selfInvocation));
+            return Optional.of(leftOfSemiColon.length == 0)
+                    .filter(bool -> bool)
+                    .map(bool -> true)
+                    .orElseGet(() -> {
+                        final String firstLeftGroup = leftOfSemiColon[0];
+                        final String[] selfInvocationGroups = firstLeftGroup.split("\\.");
+                        return Optional.of(selfInvocationGroups.length == 0 || selfInvocationGroups.length == 1)
+                                .filter(bool -> bool)
+                                .map(bool -> true)
+                                .orElseGet(() -> {
+                                    final String selfInvocation = selfInvocationGroups[1];
+                                    return implicitMethod.stream()
+                                            .noneMatch(include -> include.equals(selfInvocation));
+                                });
+                    });
+
         };
     }
+
 }

@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -19,13 +20,14 @@ import java.util.stream.Collectors;
  */
 public class TextService extends AbstractPrintService {
 
-    public void write(final String className, final String methodName, final String outputFilePath,
-                      final List<MethodInvocation> methodInvocations,
-                      final int indentationLevel, final WriterMemo writerMemo) {
+    public int write(final String className, final String methodName, final String outputFilePath,
+                     final List<MethodInvocation> methodInvocations,
+                     final int indentationLevel, final WriterMemo writerMemo) {
         final String output = build(className, methodName, methodInvocations, indentationLevel, writerMemo).getOutput();
         final List<String> lines = new ArrayList<>(List.of(output.split("\n")));
         final Path file = Paths.get(outputFilePath);
         Unchecked.supplier(() -> Files.write(file, lines, Charset.forName("UTF-8"))).get();
+        return lines.size();
     }
 
     private WriterMemo build(final String className,
@@ -40,17 +42,17 @@ public class TextService extends AbstractPrintService {
         final String subsequentTabs = StringUtils.repeat("\t", indentationLevel + 1);
         final String resultOutput = methodInvocations.stream().map(methodInvocation -> {
             final StringBuilder nestedStrings = new StringBuilder();
-            if (methodInvocation.getMethodInvocations().size() > 0) {
-                final WriterMemo nextMemo = new WriterMemo.Builder(nestedStrings.toString()).build();
-                final StringBuilder innerOutput = new StringBuilder(build(methodInvocation.getType(),
-                        methodInvocation.getMethod(), methodInvocation.getMethodInvocations(),
-                        nextIndentationLevel, nextMemo).getOutput());
-                nestedStrings.append(innerOutput);
-            } else {
-                nestedStrings.append(subsequentTabs).append(normalizeObjectCreation(methodInvocation.getType(),
-                        methodInvocation.getMethod(), "\n"));
-            }
-            return nestedStrings.toString();
+            return Optional.of(methodInvocation.getMethodInvocations().size() > 0)
+                    .filter(bool -> bool)
+                    .map(bool -> {
+                        final WriterMemo nextMemo = new WriterMemo.Builder(nestedStrings.toString()).build();
+                        final StringBuilder innerOutput = new StringBuilder(build(methodInvocation.getType(),
+                                methodInvocation.getMethod(), methodInvocation.getMethodInvocations(),
+                                nextIndentationLevel, nextMemo).getOutput());
+                        return nestedStrings.append(innerOutput).toString();
+                    }).orElseGet(() -> nestedStrings.append(subsequentTabs)
+                            .append(normalizeObjectCreation(methodInvocation.getType(), methodInvocation.getMethod(), "\n"))
+                            .toString());
         }).collect(Collectors.joining());
         return new WriterMemo.Builder(output + resultOutput).build();
     }

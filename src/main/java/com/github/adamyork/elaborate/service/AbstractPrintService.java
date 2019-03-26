@@ -1,13 +1,16 @@
 package com.github.adamyork.elaborate.service;
 
+import java.util.Optional;
+
+@SuppressWarnings("WeakerAccess")
 class AbstractPrintService {
 
-    String normalizeObjectCreation(final String className, final String methodName, final String postFix) {
-        String nextCall = className + "::" + methodName + postFix;
-        if (nextCall.contains("::\"<init>\"")) {
-            nextCall = "new " + nextCall.replace("::\"<init>\"", "");
-        }
-        return nextCall;
+    protected String normalizeObjectCreation(final String className, final String methodName, final String postFix) {
+        final String nextCall = className + "::" + methodName + postFix;
+        return Optional.of(nextCall.contains("::\"<init>\""))
+                .filter(bool -> bool)
+                .map(bool -> "new " + nextCall.replace("::\"<init>\"", ""))
+                .orElse(nextCall);
     }
 
 }
