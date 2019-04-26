@@ -6,13 +6,12 @@ import filter.ParserPatterns;
 import filter.ParserPredicates;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.lambda.tuple.Tuple;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -50,7 +49,7 @@ class Elaborator {
         this.implicitMethod = implicitMethods;
     }
 
-    @SuppressWarnings({"WeakerAccess", "unchecked"})
+    @SuppressWarnings({"WeakerAccess"})
     public List<MethodInvocation> run() {
         final File source = new File(inputPath);
         final Parser parser = new Parser();
@@ -61,7 +60,7 @@ class Elaborator {
         LOG.info("building invocation tree");
         return targetMetadata.map(metadata -> findInvocationsInMethod(metadata,
                 classMetadataList, methodName, methodArgs))
-                .orElse(Collections.EMPTY_LIST);
+                .orElseGet(ArrayList::new);
     }
 
     private List<MethodInvocation> findInvocationsInMethod(final ClassMetadata classMetadata,
@@ -75,11 +74,10 @@ class Elaborator {
                 .filter(bool -> bool)
                 .map(bool -> logState("no method named " + methodNameReference + " exists on class " + classMetadata.getClassName()))
                 .map(bool -> getSuperClassInvocations(classMetadata, classMetadataList, methodNameReference))
-                .orElse(parseMethodMatch(classMetadata, classMetadataList, methodNameReference, methodLocatorMatcher));
+                .orElseGet(() -> parseMethodMatch(classMetadata, classMetadataList, methodNameReference, methodLocatorMatcher));
 
     }
 
-    @SuppressWarnings("unchecked")
     private List<MethodInvocation> parseMethodMatch(final ClassMetadata classMetadata,
                                                     final List<ClassMetadata> classMetadataList,
                                                     final String methodNameReference,
@@ -91,7 +89,7 @@ class Elaborator {
         return maybeMethodIndexToEndOfMethod
                 .map(body -> parseMethodMatchBody(classMetadata, classMetadataList, methodNameReference, body))
                 .orElseGet(() -> logStateSupplier("no body end found for " + methodNameReference + " on class "
-                        + classMetadata.getClassName(), Collections.EMPTY_LIST));
+                        + classMetadata.getClassName(), new ArrayList<>()));
     }
 
     @SuppressWarnings("unchecked")
@@ -101,12 +99,12 @@ class Elaborator {
                                                         final String methodIndexToEndOfMethod) {
         final Pattern methodContentsStartPattern = Pattern.compile("Code:");
         final Matcher methodContentsStartMatcher = methodContentsStartPattern.matcher(methodIndexToEndOfMethod);
-        return Optional.of(!methodContentsStartMatcher.find())
+        return Optional.of(methodContentsStartMatcher.find())
                 .filter(bool -> bool)
-                .map(bool -> logStateSupplier("no start of body contents found for " + methodNameReference
-                        + " on class " + classMetadata.getClassName(), Collections.EMPTY_LIST))
-                .orElseGet(() -> getMethodMatchBodyContents(classMetadata, classMetadataList,
-                        methodIndexToEndOfMethod, methodContentsStartMatcher));
+                .map(bool -> getMethodMatchBodyContents(classMetadata, classMetadataList,
+                        methodIndexToEndOfMethod, methodContentsStartMatcher))
+                .orElseGet(() -> logStateSupplier("no start of body contents found for " + methodNameReference
+                        + " on class " + classMetadata.getClassName(), new ArrayList()));
 
     }
 
@@ -134,10 +132,10 @@ class Elaborator {
                     return Optional.of(lastReturn != -1)
                             .filter(hasLastReturn -> hasLastReturn)
                             .map(hasLastReturn -> methodIndexToEof.substring(0, lastReturn + "return".length()));
-                }).orElseGet(() -> Optional.of(methodBodyEndMatcher.group()));
+                })
+                .orElseGet(() -> Optional.of(methodBodyEndMatcher.group()));
     }
 
-    @SuppressWarnings("unchecked")
     private List<MethodInvocation> getSuperClassInvocations(final ClassMetadata classMetadata,
                                                             final List<ClassMetadata> classMetadataList,
                                                             final String methodNameReference) {
@@ -145,16 +143,22 @@ class Elaborator {
                 .filter(bool -> bool)
                 .map(bool -> {
                     LOG.debug("checking super class " + classMetadata.getClassName() + " for method");
-                    return classMetadataList.stream().filter(metadata -> {
-                        final int genericIndex = classMetadata.getSuperClass().indexOf("<");
-                        return Optional.of(genericIndex == -1)
-                                .filter(hasGenericIndex -> hasGenericIndex)
-                                .map(hasGenericIndex -> metadata.getClassName().equals(classMetadata.getSuperClass()))
-                                .orElse(metadata.getClassName().equals(classMetadata.getSuperClass().substring(0, genericIndex)));
-                    }).findFirst()
-                            .map(metadata -> findInvocationsInMethod(metadata, classMetadataList, methodNameReference, ""))
-                            .orElse(Collections.EMPTY_LIST);
-                }).orElse(Collections.EMPTY_LIST);
+                    return classMetadataList.stream()
+                            .filter(metadata -> {
+                                final int genericIndex = classMetadata.getSuperClass().indexOf("<");
+                                return Optional.of(genericIndex == -1)
+                                        .filter(noGenericIndex -> noGenericIndex)
+                                        .map(noGenericIndex -> Tuple.tuple(genericIndex, metadata.getClassName()
+                                                .equals(classMetadata.getSuperClass())))
+                                        .orElseGet(() -> Tuple.tuple(genericIndex, metadata.getClassName()
+                                                .equals(classMetadata.getSuperClass()
+                                                        .substring(0, genericIndex)))).v2;
+                            })
+                            .findFirst()
+                            .map(metadata -> findInvocationsInMethod(metadata, classMetadataList,
+                                    methodNameReference, ""))
+                            .orElseGet(ArrayList::new);
+                }).orElseGet(ArrayList::new);
     }
 
     private MethodInvocation lineToMethodInvocation(final String line, final ClassMetadata classMetadata,
@@ -177,19 +181,23 @@ class Elaborator {
         final Optional<ClassMetadata> invocationClassMetadata = classMetadataList.stream()
                 .filter(metadata -> metadata.getClassName().equals(methodInvocation.getType()))
                 .findFirst();
-        return invocationClassMetadata.map(metadata -> Optional.of(metadata.isInterface())
-                .filter(bool -> bool)
-                .map(bool -> logState("interface " + metadata.getClassName() + " found in invocation list"))
-                .map(bool -> processPossibleImplementations(classMetadataList, metadata, methodInvocation, classMetadata))
-                .orElseGet(() -> {
-                    LOG.debug("no interface object in invocation list");
-                    final List<MethodInvocation> nestedInvocations = findInvocationsInMethod(metadata,
-                            classMetadataList, methodInvocation.getMethod(),
-                            methodInvocation.getArguments());
-                    nestedInvocations.addAll(processImpliedMethodInvocations(classMetadataList, methodInvocation));
-                    return new MethodInvocation.Builder(methodInvocation.getType(), methodInvocation.getMethod(),
-                            methodInvocation.getArguments(), nestedInvocations).build();
-                })).orElse(methodInvocation);
+        return invocationClassMetadata
+                .map(metadata -> Optional.of(metadata.isInterface())
+                        .filter(bool -> bool)
+                        .map(bool -> logState("interface " + metadata.getClassName() + " found in invocation list"))
+                        .map(bool -> processPossibleImplementations(classMetadataList, metadata, methodInvocation, classMetadata))
+                        .orElseGet(() -> {
+                            LOG.debug("no interface object in invocation list");
+                            final List<MethodInvocation> nestedInvocations = findInvocationsInMethod(metadata,
+                                    classMetadataList, methodInvocation.getMethod(),
+                                    methodInvocation.getArguments());
+                            final List<MethodInvocation> impliedMethodInvocations = processImpliedMethodInvocations(classMetadataList,
+                                    methodInvocation);
+                            nestedInvocations.addAll(impliedMethodInvocations);
+                            return new MethodInvocation.Builder(methodInvocation.getType(), methodInvocation.getMethod(),
+                                    methodInvocation.getArguments(), nestedInvocations).build();
+                        }))
+                .orElse(methodInvocation);
     }
 
     private MethodInvocation processPossibleImplementations(final List<ClassMetadata> classMetadataList,
@@ -216,26 +224,27 @@ class Elaborator {
                 methodInvocation.getArguments(), aggregateInvocations).build();
     }
 
-    @SuppressWarnings("unchecked")
     private List<MethodInvocation> processImpliedMethodInvocations(final List<ClassMetadata> classMetadataList,
                                                                    final MethodInvocation methodInvocation) {
-        return Optional.of(!methodInvocation.getMethod().contains("<init>"))
+        return Optional.of(methodInvocation.getMethod().contains("<init>"))
                 .filter(bool -> bool)
-                .map(bool -> Collections.EMPTY_LIST)
-                .orElseGet(() -> implicitMethod.stream().map(method -> {
-                    final Optional<ClassMetadata> maybeNewObjectClassMetadata = classMetadataList.stream()
-                            .filter(metadata -> metadata.getClassName().equals(methodInvocation.getType()))
-                            .findFirst();
-                    return maybeNewObjectClassMetadata
-                            .map(newObjectClassMetadata -> findInvocationsInMethod(newObjectClassMetadata,
-                                    classMetadataList, method, ""))
-                            .orElse(null);
-                }).filter(Objects::nonNull)
+                .map(bool -> implicitMethod.stream()
+                        .map(method -> {
+                            final Optional<ClassMetadata> maybeNewObjectClassMetadata = classMetadataList.stream()
+                                    .filter(metadata -> metadata.getClassName().equals(methodInvocation.getType()))
+                                    .findFirst();
+                            return maybeNewObjectClassMetadata
+                                    .map(newObjectClassMetadata -> findInvocationsInMethod(newObjectClassMetadata,
+                                            classMetadataList, method, ""))
+                                    .orElseGet(ArrayList::new);
+                        })
                         .flatMap(List::stream)
-                        .collect(Collectors.toList()));
+                        .collect(Collectors.toList()))
+                .orElseGet(ArrayList::new);
 
     }
 
+    @SuppressWarnings("ArraysAsListWithZeroOrOneArgument")
     private List<String> mergeLambdaBodyLinesWithMethodLines(final List<String> methodBodyLines,
                                                              final ClassMetadata classMetadata,
                                                              final Pattern methodBodyLocator) {
@@ -245,7 +254,7 @@ class Elaborator {
                     final Matcher lambdaMatcher = lambdaPattern.matcher(line);
                     return Optional.of(!lambdaMatcher.find())
                             .filter(bool -> bool)
-                            .map(bool -> new ArrayList<>(Collections.singletonList(line)))
+                            .map(bool -> new ArrayList<>(Arrays.asList(line)))
                             .orElseGet(() -> {
                                 final String lambda = lambdaMatcher.group(1);
                                 final Pattern lambdaReplacementPattern = Pattern.compile(".*lambda\\$.*\\$" + lambda);
@@ -253,14 +262,14 @@ class Elaborator {
                                         .matcher(classMetadata.getClassContent());
                                 return Optional.of(!lambdaReplacementMatcher.find())
                                         .filter(bool -> bool)
-                                        .map(bool -> new ArrayList<>(Collections.singletonList(line)))
+                                        .map(bool -> new ArrayList<>(Arrays.asList(line)))
                                         .orElseGet(() -> {
                                             final String lambdaIndexToEof = classMetadata.getClassContent()
                                                     .substring(lambdaReplacementMatcher.start());
                                             final Matcher lambdaBodyMatcher = methodBodyLocator.matcher(lambdaIndexToEof);
                                             return Optional.of(!lambdaBodyMatcher.find())
                                                     .filter(bool -> bool)
-                                                    .map(bool -> new ArrayList<>(Collections.singletonList(line)))
+                                                    .map(bool -> new ArrayList<>(Arrays.asList(line)))
                                                     .orElseGet(() -> {
                                                         final String lambdaBody = lambdaBodyMatcher.group();
                                                         //TODO this this may need multi and single support
@@ -273,12 +282,11 @@ class Elaborator {
                                                                     final String lambdaRefMethodBlock = lambdaBody.substring(0, lambdaRefContentBody.end());
                                                                     final List<String> lambdaRefMethodBlockLines = List.of(lambdaRefMethodBlock.split("\n"));
                                                                     return new ArrayList<>(lambdaRefMethodBlockLines);
-                                                                }).orElse(new ArrayList<>());
+                                                                })
+                                                                .orElseGet(ArrayList::new);
                                                     });
                                         });
-
                             });
-
                 })
                 .flatMap(List::stream)
                 .collect(Collectors.toList());
@@ -312,7 +320,8 @@ class Elaborator {
                     final String noInterface = noVirtual.replace("invokeInterface", "");
                     final String noStatic = noInterface.replace("invokeStatic", "");
                     return noStatic.replace("invokeSpecial", "");
-                }).orElse(line.replaceAll("^.*invokedynamic.*//InvokeDynamic#[0-9]+:", "a/dynamic/pkg/Lambda."));
+                })
+                .orElse(line.replaceAll("^.*invokedynamic.*//InvokeDynamic#[0-9]+:", "a/dynamic/pkg/Lambda."));
     }
 
     private String buildArgumentAsString(final String input) {

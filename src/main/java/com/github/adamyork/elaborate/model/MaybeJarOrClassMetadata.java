@@ -3,11 +3,11 @@ package com.github.adamyork.elaborate.model;
 import java.util.Optional;
 
 @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
-public class JarEntryOrClassMetadata<T> {
+public class MaybeJarOrClassMetadata<T> {
 
     private final Optional<T> entryOrMetadata;
 
-    private JarEntryOrClassMetadata(final Builder<T> builder) {
+    private MaybeJarOrClassMetadata(final Builder<T> builder) {
         entryOrMetadata = builder.entryOrMetadata;
     }
 
@@ -23,8 +23,8 @@ public class JarEntryOrClassMetadata<T> {
             this.entryOrMetadata = entryOrMetadata;
         }
 
-        public JarEntryOrClassMetadata build() {
-            return new JarEntryOrClassMetadata<>(this);
+        public MaybeJarOrClassMetadata build() {
+            return new MaybeJarOrClassMetadata<>(this);
         }
 
     }
