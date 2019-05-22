@@ -1,8 +1,10 @@
 package com.github.adamyork.elaborate;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.adamyork.elaborate.model.ArgumentListState;
 import com.github.adamyork.elaborate.model.ClassMetadata;
 import com.github.adamyork.elaborate.model.MaybeJarOrClassMetadata;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -12,21 +14,13 @@ import org.jooq.lambda.tuple.Tuple2;
 import org.jooq.lambda.tuple.Tuple4;
 import org.jooq.lambda.tuple.Tuple5;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.io.PrintStream;
+import java.io.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.*;
 import java.util.function.Function;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -45,8 +39,39 @@ public class Parser {
 
     private static final Logger LOG = LogManager.getLogger(Parser.class);
 
-    public List<ClassMetadata> parse(final File source, final List<String> libraryIncludes) {
+    public List<ClassMetadata> parse(final File source,
+                                     final List<String> libraryIncludes) {
         LOG.info("processing sources for " + source.getName());
+        final File tmpDir = new File(source.getName() + "-parsed");
+        final boolean exists = tmpDir.exists();
+        return Optional.of(exists)
+                .filter(bool -> bool)
+                .map(bool -> {
+                    final List<Path> preParsed = Unchecked.supplier(() -> Files.walk(Paths.get(source.getName() + "-parsed")))
+                            .get()
+                            .filter(Files::isRegularFile)
+                            .collect(Collectors.toList());
+                    return Optional.of(preParsed.size() > 0)
+                            .filter(hasFiles -> hasFiles)
+                            .map(hasFiles -> getFromDisk(preParsed))
+                            .orElseGet(() -> initialParse(source, libraryIncludes));
+                }).orElseGet(() -> initialParse(source, libraryIncludes));
+    }
+
+    private List<ClassMetadata> getFromDisk(final List<Path> preParsed) {
+        LOG.info("sources already processed. loading from disk");
+        return preParsed.stream()
+                .map(path -> {
+                    final ObjectMapper mapper = new ObjectMapper();
+                    final InputStream input = Unchecked.supplier(() -> new FileInputStream(path.toFile())).get();
+                    return Unchecked.supplier(() -> mapper.readValue(input, ClassMetadata.class)).get();
+                })
+                .collect(Collectors.toList());
+    }
+
+    private List<ClassMetadata> initialParse(final File source,
+                                             final List<String> libraryIncludes) {
+        LOG.info("no pre-processed sources found, parsing from source jar");
         final JarFile jarFile = Unchecked.function(f -> new JarFile(source)).apply(null);
         final Enumeration<JarEntry> entries = jarFile.entries();
         final Iterator<JarEntry> jarEntryIterator = entries.asIterator();
@@ -71,50 +96,66 @@ public class Parser {
                                 .build()))
                 .collect(Collectors.toList());
         LOG.info(libraryIncludes.size() + " include sources found");
-        return Optional.of(libraryIncludes.size() > 0)
+        final List<JarEntry> libraryEntries = maybeEntriesAndMaybeMetadataList.stream()
+                .filter(maybeJarOrClassMetadata -> {
+                    //noinspection unchecked
+                    return (Boolean) maybeJarOrClassMetadata.getEntryOrMetadata()
+                            .map(JarEntry.class::isInstance)
+                            .orElse(false);
+                })
+                .map(maybeJarOrClassMetadata -> (JarEntry) Unchecked.supplier(() -> maybeJarOrClassMetadata.getEntryOrMetadata()
+                        .orElseThrow(() -> new RuntimeException("Impossible condition reached")))
+                        .get())
+                .collect(Collectors.toList());
+        final List<ClassMetadata> classMetadataList = maybeEntriesAndMaybeMetadataList.stream()
+                .filter(maybeJarOrClassMetadata -> {
+                    //noinspection unchecked
+                    return (Boolean) maybeJarOrClassMetadata.getEntryOrMetadata()
+                            .map(ClassMetadata.class::isInstance)
+                            .orElse(false);
+                })
+                .map(maybeJarOrClassMetadata -> (ClassMetadata) Unchecked.supplier(() -> maybeJarOrClassMetadata.getEntryOrMetadata()
+                        .orElseThrow(() -> new RuntimeException("Impossible condition reached")))
+                        .get())
+                .collect(Collectors.toList());
+        final List<JarEntry> filtered = libraryEntries.stream()
+                .filter(entry -> libraryIncludes.stream()
+                        .anyMatch(include -> entry.getName().contains(include)))
+                .collect(Collectors.toList());
+        final List<ClassMetadata> allLibraryMetadataList = filtered.stream()
+                .map(entry -> {
+                    final File tempFile = createTempFile(jarFile, entry);
+                    final Parser parser = new Parser();
+                    return parser.parse(tempFile, libraryIncludes);
+                })
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
+        LOG.info("processed all sources for " + source.getName());
+        final List<ClassMetadata> results = Stream.concat(classMetadataList.stream(), allLibraryMetadataList.stream())
+                .collect(Collectors.toList());
+        return Optional.of(results.size() > 0)
                 .filter(bool -> bool)
                 .map(bool -> {
-                    final List<JarEntry> libraryEntries = maybeEntriesAndMaybeMetadataList.stream()
-                            .filter(maybeJarOrClassMetadata -> {
-                                //noinspection unchecked
-                                return (Boolean) maybeJarOrClassMetadata.getEntryOrMetadata()
-                                        .map(JarEntry.class::isInstance)
-                                        .orElse(false);
-                            })
-                            .map(maybeJarOrClassMetadata -> (JarEntry) Unchecked.supplier(() -> maybeJarOrClassMetadata.getEntryOrMetadata()
-                                    .orElseThrow(() -> new RuntimeException("Impossible condition reached")))
-                                    .get())
-                            .collect(Collectors.toList());
-                    final List<ClassMetadata> classMetadataList = maybeEntriesAndMaybeMetadataList.stream()
-                            .filter(maybeJarOrClassMetadata -> {
-                                //noinspection unchecked
-                                return (Boolean) maybeJarOrClassMetadata.getEntryOrMetadata()
-                                        .map(ClassMetadata.class::isInstance)
-                                        .orElse(false);
-                            })
-                            .map(maybeJarOrClassMetadata -> (ClassMetadata) Unchecked.supplier(() -> maybeJarOrClassMetadata.getEntryOrMetadata()
-                                    .orElseThrow(() -> new RuntimeException("Impossible condition reached")))
-                                    .get())
-                            .collect(Collectors.toList());
-                    final List<JarEntry> filtered = libraryEntries.stream()
-                            .filter(entry -> libraryIncludes.stream()
-                                    .anyMatch(include -> entry.getName().contains(include)))
-                            .collect(Collectors.toList());
-                    final List<ClassMetadata> allLibraryMetadataList = filtered.stream()
-                            .map(entry -> {
-                                final File tempFile = createTempFile(jarFile, entry);
-                                final Parser parser = new Parser();
-                                return parser.parse(tempFile, libraryIncludes);
-                            })
-                            .flatMap(List::stream)
-                            .collect(Collectors.toList());
-                    LOG.info("processed all sources for " + source.getName());
-                    return Stream.concat(classMetadataList.stream(), allLibraryMetadataList.stream())
-                            .collect(Collectors.toList());
-                }).orElseGet(() -> {
-                    LOG.info("processed all sources for " + source.getName());
-                    return Collections.emptyList();
-                });
+                    final File dir = new File(source.getName() + "-parsed");
+                    final boolean directoryCreated = dir.mkdir();
+                    return Optional.of(directoryCreated)
+                            .filter(dirCreated -> dirCreated)
+                            .map(dirCreated -> {
+                                final ObjectMapper objectMapper = new ObjectMapper();
+                                for (ClassMetadata classMetadata : results) {
+                                    Unchecked.function(o -> {
+                                        final String b = objectMapper.writeValueAsString(classMetadata);
+                                        FileUtils.writeStringToFile(new File(source.getName() + "-parsed/" + classMetadata.getClassName() + ".json"),
+                                                b, Charset.defaultCharset());
+                                        return null;
+                                    }).apply(null);
+                                }
+                                return results;
+                            }).orElseGet(() -> {
+                                LOG.info("tried to create parsed directory but couldn't");
+                                return results;
+                            });
+                }).orElseGet(ArrayList::new);
     }
 
     private File createTempFile(final JarFile jarFile, final JarEntry entry) {
@@ -277,9 +318,20 @@ public class Parser {
     }
 
     private ArgumentListState eatForArgumentList(final ArgumentListState state) {
-        return Optional.of(state.getIndex() == state.getInput().length() - 1)
+        return Optional.of(state.getIndex() == state.getInput().length())
                 .filter(bool -> bool)
-                .map(bool -> state)
+                .map(bool -> {
+                    final List<String> parsed = state.getParsed();
+                    final List<String> lastMemo = new ArrayList<>(Collections.singletonList(state.getMemo()));
+                    return new ArgumentListState.Builder(state.getInput(),
+                            state.getIndex(),
+                            state.getMemo(),
+                            state.getLevel(),
+                            Stream.concat(parsed.stream(), lastMemo.stream())
+                                    .filter(str -> !str.equals(""))
+                                    .collect(Collectors.toList()))
+                            .build();
+                })
                 .orElseGet(() -> {
                     final String chr = String.valueOf(state.getInput().charAt(state.getIndex()));
                     final int level = Optional.of(chr.equals("<"))

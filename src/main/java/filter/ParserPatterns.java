@@ -42,4 +42,11 @@ public class ParserPatterns {
                 .orElse(Pattern.compile("return$", Pattern.MULTILINE));
     }
 
+    public static Pattern buildMethodBodyEndLocatorPattern() {
+        return Optional.of(System.getProperty("os.name").toLowerCase().contains("win"))
+                .filter(bool -> bool)
+                .map(bool -> Pattern.compile("^[\\s\\S]*?(?=\\r\\n\\r)"))
+                .orElse(Pattern.compile("^[\\s\\S]*?(?=\\n{2,})"));
+    }
+
 }

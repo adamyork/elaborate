@@ -1,5 +1,10 @@
 package com.github.adamyork.elaborate.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
+
 import java.util.List;
 import java.util.Map;
 
@@ -7,6 +12,9 @@ import java.util.Map;
  * Created by Adam York on 3/12/2018.
  * Copyright 2018
  */
+@SuppressWarnings("unused")
+@JsonDeserialize(builder = ClassMetadata.Builder.class)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class ClassMetadata {
 
     private final String className;
@@ -49,6 +57,7 @@ public class ClassMetadata {
         return methodReferences;
     }
 
+    @JsonPOJOBuilder(withPrefix = "")
     public static class Builder {
 
         private final String className;
@@ -58,12 +67,12 @@ public class ClassMetadata {
         private final List<String> interfaces;
         private final Map<String, String> methodReferences;
 
-        public Builder(final String className,
-                       final String classContent,
-                       final String superClass,
-                       final boolean isInterface,
-                       final List<String> interfaces,
-                       final Map<String, String> methodReferences) {
+        public Builder(@JsonProperty(value = "className") final String className,
+                       @JsonProperty(value = "classContent") final String classContent,
+                       @JsonProperty(value = "superClass") final String superClass,
+                       @JsonProperty(value = "interface") final boolean isInterface,
+                       @JsonProperty(value = "interfaces") final List<String> interfaces,
+                       @JsonProperty(value = "methodReferences") final Map<String, String> methodReferences) {
             this.className = className;
             this.classContent = classContent;
             this.superClass = superClass;

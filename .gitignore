@@ -4,3 +4,4 @@ gradle/
 out/
 functional/
 build/
+project-jfx.jar-parsed/

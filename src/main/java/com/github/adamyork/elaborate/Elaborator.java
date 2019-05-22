@@ -6,7 +6,6 @@ import filter.ParserPatterns;
 import filter.ParserPredicates;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jooq.lambda.tuple.Tuple;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -83,7 +82,7 @@ class Elaborator {
                                                     final String methodNameReference,
                                                     final Matcher methodLocatorMatcher) {
         final String methodIndexToEof = classMetadata.getClassContent().substring(methodLocatorMatcher.start());
-        final Pattern methodBodyEndPattern = Pattern.compile("^[\\s\\S]*?(?=\\n{2,})");
+        final Pattern methodBodyEndPattern = ParserPatterns.buildMethodBodyEndLocatorPattern();
         final Matcher methodBodyEndMatcher = methodBodyEndPattern.matcher(methodIndexToEof);
         final Optional<String> maybeMethodIndexToEndOfMethod = maybeGetMethodContents(methodBodyEndMatcher, methodIndexToEof);
         return maybeMethodIndexToEndOfMethod
@@ -148,11 +147,8 @@ class Elaborator {
                                 final int genericIndex = classMetadata.getSuperClass().indexOf("<");
                                 return Optional.of(genericIndex == -1)
                                         .filter(noGenericIndex -> noGenericIndex)
-                                        .map(noGenericIndex -> Tuple.tuple(genericIndex, metadata.getClassName()
-                                                .equals(classMetadata.getSuperClass())))
-                                        .orElseGet(() -> Tuple.tuple(genericIndex, metadata.getClassName()
-                                                .equals(classMetadata.getSuperClass()
-                                                        .substring(0, genericIndex)))).v2;
+                                        .map(noGenericIndex -> metadata.getClassName().equals(classMetadata.getSuperClass()))
+                                        .orElseGet(() -> metadata.getClassName().equals(classMetadata.getSuperClass().substring(0, genericIndex)));
                             })
                             .findFirst()
                             .map(metadata -> findInvocationsInMethod(metadata, classMetadataList,
@@ -296,30 +292,36 @@ class Elaborator {
                                                                     final ClassMetadata classMetadata) {
         return methodBodyLines.stream()
                 .filter(ParserPredicates.invocationIsSupported())
+                .map(line -> hoistMethodReferences(line, classMetadata))
                 .map(line -> line.replaceAll("^.*invokevirtual.*//Method", ""))
                 .map(line -> line.replaceAll("^.*invokeinterface.*//InterfaceMethod", ""))
                 .map(line -> line.replaceAll("^.*invokestatic.*//Method", ""))
                 .map(line -> line.replaceAll("^.*invokestatic.*//InterfaceMethod", ""))
                 .map(line -> line.replaceAll("^.*invokespecial.*//Method", ""))
-                .map(line -> hoistMethodReferences(line, classMetadata))
                 .filter(ParserPredicates.invocationIsNotAlsoImplied(implicitMethod))
                 .filter(ParserPredicates.invocationIsNotExcluded(excludes))
                 .collect(Collectors.toList());
     }
 
     private String hoistMethodReferences(final String line, final ClassMetadata classMetadata) {
-        final Pattern bootstrapMethodReferencePattern = Pattern.compile("InvokeDynamic#[0-9]+:");
-        final Matcher bootstrapMethodReferenceMatcher = bootstrapMethodReferencePattern.matcher(line);
-        return Optional.of(bootstrapMethodReferenceMatcher.find())
+        final Pattern bootstrapMethodRefDynamicPattern = Pattern.compile("InvokeDynamic#[0-9]+");
+        //final Pattern bootstrapMethodRefVirtualPattern = Pattern.compile("^[0-9]+:InvokeVirtual#[0-9]+|^[0-9]+:invokevirtual#[0-9]+");
+        final Matcher bootstrapMethodRefDynamicMatcher = bootstrapMethodRefDynamicPattern.matcher(line);
+        //final Matcher bootstrapMethodRefVirtualMatcher = bootstrapMethodRefVirtualPattern.matcher(line);
+        final boolean isDynamic = bootstrapMethodRefDynamicMatcher.find();
+        // final boolean isVirtual = bootstrapMethodRefVirtualMatcher.find();
+        return Optional.of(isDynamic)
                 .filter(bool -> bool)
                 .map(bool -> {
-                    final String[] parts = bootstrapMethodReferenceMatcher.group().split("InvokeDynamic#");
-                    final String methodReference = classMetadata.getMethodReferences().get(parts[1].replace(":", ""));
-                    final String noRef = methodReference.replaceAll("#[0-9]+REF_", "");
-                    final String noVirtual = noRef.replace("invokeVirtual", "");
-                    final String noInterface = noVirtual.replace("invokeInterface", "");
-                    final String noStatic = noInterface.replace("invokeStatic", "");
-                    return noStatic.replace("invokeSpecial", "");
+                    final String[] parts = bootstrapMethodRefDynamicMatcher.group().split("InvokeDynamic#|invokedynamic#");
+                    final Optional<String> methodReference = Optional.ofNullable(classMetadata.getMethodReferences()
+                            .get(parts[1].replace(":", "")));
+                    return methodReference.map(ref -> {
+                        final String noRef = ref.replaceAll("#[0-9]+REF_", "");
+                        final String noInterface = noRef.replace("invokeInterface", "");
+                        final String noStatic = noInterface.replace("invokeStatic", "");
+                        return noStatic.replace("invokeSpecial", "");
+                    }).orElse(line);
                 })
                 .orElse(line.replaceAll("^.*invokedynamic.*//InvokeDynamic#[0-9]+:", "a/dynamic/pkg/Lambda."));
     }
