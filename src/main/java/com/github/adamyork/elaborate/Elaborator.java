@@ -112,10 +112,8 @@ class Elaborator {
                                                               final String methodIndexToEndOfMethod,
                                                               final Matcher methodContentsStartMatcher) {
         final String methodBody = methodIndexToEndOfMethod.substring(methodContentsStartMatcher.start());
-        final List<String> methodBodyLines = List.of(methodBody.split("\n"));
-        final List<String> methodBodyLinesWithDynamicHoisted = mergeLambdaBodyLinesWithMethodLines(methodBodyLines,
-                classMetadata, Pattern.compile("(?s)Code:.*?(?=\\n\\n)|(?s)Code:.*?(?=\\n})"));
-        final List<String> filtered = filterNonEssentialInternalsFromMethodLines(methodBodyLinesWithDynamicHoisted
+        final List<String> methodBodyLines = Arrays.asList(methodBody.split("\n"));
+        final List<String> filtered = filterNonEssentialInternalsFromMethodLines(methodBodyLines
                 , classMetadata);
         LOG.debug("found " + filtered.size() + " invocations");
         return filtered.stream()
@@ -240,59 +238,11 @@ class Elaborator {
 
     }
 
-    @SuppressWarnings("ArraysAsListWithZeroOrOneArgument")
-    private List<String> mergeLambdaBodyLinesWithMethodLines(final List<String> methodBodyLines,
-                                                             final ClassMetadata classMetadata,
-                                                             final Pattern methodBodyLocator) {
-        return methodBodyLines.stream()
-                .map(line -> {
-                    final Pattern lambdaPattern = Pattern.compile("^.*invokedynamic.*//InvokeDynamic#([0-9]+):");
-                    final Matcher lambdaMatcher = lambdaPattern.matcher(line);
-                    return Optional.of(!lambdaMatcher.find())
-                            .filter(bool -> bool)
-                            .map(bool -> new ArrayList<>(Arrays.asList(line)))
-                            .orElseGet(() -> {
-                                final String lambda = lambdaMatcher.group(1);
-                                final Pattern lambdaReplacementPattern = Pattern.compile(".*lambda\\$.*\\$" + lambda);
-                                final Matcher lambdaReplacementMatcher = lambdaReplacementPattern
-                                        .matcher(classMetadata.getClassContent());
-                                return Optional.of(!lambdaReplacementMatcher.find())
-                                        .filter(bool -> bool)
-                                        .map(bool -> new ArrayList<>(Arrays.asList(line)))
-                                        .orElseGet(() -> {
-                                            final String lambdaIndexToEof = classMetadata.getClassContent()
-                                                    .substring(lambdaReplacementMatcher.start());
-                                            final Matcher lambdaBodyMatcher = methodBodyLocator.matcher(lambdaIndexToEof);
-                                            return Optional.of(!lambdaBodyMatcher.find())
-                                                    .filter(bool -> bool)
-                                                    .map(bool -> new ArrayList<>(Arrays.asList(line)))
-                                                    .orElseGet(() -> {
-                                                        final String lambdaBody = lambdaBodyMatcher.group();
-                                                        //TODO this this may need multi and single support
-                                                        final Pattern lambdaRefContentPattern = ParserPatterns
-                                                                .buildSingleMethodBodyEndLocatorPattern();
-                                                        final Matcher lambdaRefContentBody = lambdaRefContentPattern.matcher(lambdaBody);
-                                                        return Optional.of(lambdaRefContentBody.find())
-                                                                .filter(bool -> bool)
-                                                                .map(bool -> {
-                                                                    final String lambdaRefMethodBlock = lambdaBody.substring(0, lambdaRefContentBody.end());
-                                                                    final List<String> lambdaRefMethodBlockLines = List.of(lambdaRefMethodBlock.split("\n"));
-                                                                    return new ArrayList<>(lambdaRefMethodBlockLines);
-                                                                })
-                                                                .orElseGet(ArrayList::new);
-                                                    });
-                                        });
-                            });
-                })
-                .flatMap(List::stream)
-                .collect(Collectors.toList());
-    }
-
     private List<String> filterNonEssentialInternalsFromMethodLines(final List<String> methodBodyLines,
                                                                     final ClassMetadata classMetadata) {
         return methodBodyLines.stream()
                 .filter(ParserPredicates.invocationIsSupported())
-                .map(line -> hoistMethodReferences(line, classMetadata))
+                .map(line -> locateAndLiftDynamicInvocations(line, classMetadata))
                 .map(line -> line.replaceAll("^.*invokevirtual.*//Method", ""))
                 .map(line -> line.replaceAll("^.*invokeinterface.*//InterfaceMethod", ""))
                 .map(line -> line.replaceAll("^.*invokestatic.*//Method", ""))
@@ -303,22 +253,20 @@ class Elaborator {
                 .collect(Collectors.toList());
     }
 
-    private String hoistMethodReferences(final String line, final ClassMetadata classMetadata) {
+    private String locateAndLiftDynamicInvocations(final String line, final ClassMetadata classMetadata) {
         final Pattern bootstrapMethodRefDynamicPattern = Pattern.compile("InvokeDynamic#[0-9]+");
-        //final Pattern bootstrapMethodRefVirtualPattern = Pattern.compile("^[0-9]+:InvokeVirtual#[0-9]+|^[0-9]+:invokevirtual#[0-9]+");
         final Matcher bootstrapMethodRefDynamicMatcher = bootstrapMethodRefDynamicPattern.matcher(line);
-        //final Matcher bootstrapMethodRefVirtualMatcher = bootstrapMethodRefVirtualPattern.matcher(line);
         final boolean isDynamic = bootstrapMethodRefDynamicMatcher.find();
-        // final boolean isVirtual = bootstrapMethodRefVirtualMatcher.find();
         return Optional.of(isDynamic)
                 .filter(bool -> bool)
                 .map(bool -> {
-                    final String[] parts = bootstrapMethodRefDynamicMatcher.group().split("InvokeDynamic#|invokedynamic#");
+                    final String[] parts = bootstrapMethodRefDynamicMatcher.group().split("InvokeDynamic#");
                     final Optional<String> methodReference = Optional.ofNullable(classMetadata.getMethodReferences()
                             .get(parts[1].replace(":", "")));
                     return methodReference.map(ref -> {
                         final String noRef = ref.replaceAll("#[0-9]+REF_", "");
-                        final String noInterface = noRef.replace("invokeInterface", "");
+                        final String noVirtual = noRef.replaceAll("invokeVirtual", "");
+                        final String noInterface = noVirtual.replace("invokeInterface", "");
                         final String noStatic = noInterface.replace("invokeStatic", "");
                         return noStatic.replace("invokeSpecial", "");
                     }).orElse(line);

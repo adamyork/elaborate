@@ -19,6 +19,7 @@ public class ParserPatterns {
                     .replace(";;", "")
                     .replace("JL", "long,")
                     .replace("[L", "")
+                    .replace("[BL", "")
                     .replace(";IL", ",int,")
                     .replace(";ZL", ",boolean,")
                     .replace(";ZZZZ", ",boolean,boolean,boolean,boolean")
@@ -31,8 +32,12 @@ public class ParserPatterns {
             final String normalizedArguments = allArguments.stream()
                     .map(arg -> ".*" + arg + ".*")
                     .collect(Collectors.joining(","));
-            return Pattern.compile(methodNameReference + "\\(" + normalizedArguments + "\\);");
-        }).orElse(Pattern.compile(methodNameReference + "\\(.*\\);"));
+            final String escapedLambdaCharsMethodName = methodNameReference.replace("$", "\\$");
+            return Pattern.compile(escapedLambdaCharsMethodName + "\\(" + normalizedArguments + "\\).*;");
+        }).orElseGet(() -> {
+            final String escapedLambdaCharsMethodName = methodNameReference.replace("$", "\\$");
+            return Pattern.compile(escapedLambdaCharsMethodName + "\\(.*\\).*;");
+        });
     }
 
     public static Pattern buildSingleMethodBodyEndLocatorPattern() {

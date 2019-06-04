@@ -74,9 +74,8 @@ public class Parser {
         LOG.info("no pre-processed sources found, parsing from source jar");
         final JarFile jarFile = Unchecked.function(f -> new JarFile(source)).apply(null);
         final Enumeration<JarEntry> entries = jarFile.entries();
-        final Iterator<JarEntry> jarEntryIterator = entries.asIterator();
-        final List<MaybeJarOrClassMetadata> maybeEntriesAndMaybeMetadataList = Stream.generate(jarEntryIterator::next)
-                .takeWhile(i -> jarEntryIterator.hasNext())
+        final List<JarEntry> jarEntries = Collections.list(entries);
+        final List<MaybeJarOrClassMetadata> maybeEntriesAndMaybeMetadataList = jarEntries.stream()
                 .map(entry -> Optional.of(entry.getName().contains(".class"))
                         .filter(bool -> bool)
                         .map(bool -> {
@@ -172,7 +171,7 @@ public class Parser {
     private Function<Tuple4<ToolProvider, PrintStream, PrintStream, File>,
             Tuple4<ToolProvider, PrintStream, PrintStream, File>> runJavaPFull() {
         return objects -> {
-            objects.v1.run(objects.v2, objects.v3, "-c", "-p", "-v", "-constants", String.valueOf(objects.v4));
+            objects.v1.run(objects.v2, objects.v3, "-c", "-p", "-v", "-l", "-s", "-constants", "-sysinfo", String.valueOf(objects.v4));
             return Tuple.tuple(objects.v1, objects.v2, objects.v3, objects.v4);
         };
     }
@@ -189,7 +188,7 @@ public class Parser {
                                                                                                                 final File file,
                                                                                                                 final Function<Tuple4<ToolProvider, PrintStream, PrintStream, File>,
                                                                                                                         Tuple4<ToolProvider, PrintStream, PrintStream, File>> javaPFunction) {
-        final Charset charset = StandardCharsets.UTF_8;
+        final Charset charset = StandardCharsets.US_ASCII;
         final ByteArrayOutputStream contentByteArrayStream = new ByteArrayOutputStream();
         final ByteArrayOutputStream errorByteArrayStream = new ByteArrayOutputStream();
         final PrintStream contentsStream = Unchecked.function(t -> new PrintStream(contentByteArrayStream,
