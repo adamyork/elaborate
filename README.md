@@ -34,9 +34,18 @@ java -jar elaborate.jar -c "<path to config file>.json" -v
 * includes any additional jars contained within the input source. **optional**
 * excludes any classes to exclude from processing **optional**
 * implicitMethod in the case of new object instantiation, these methods will be added to the call chain. **optional**
-* whiteList filters only nodes containing refrences to classes and methods specified **optional**
+* whiteList filters only nodes containing references to classes and methods specified **optional**
 
 **entryClass and entryMethod entries are one-to-one and order dependent.**
+
+### more on implicit methods
+why is this needed ? any call found during the processing of classes that is not on the class path will be filtered from
+the results. This can cause issues when trying to locate a target method invocation. one option would be to simply 
+provide all of the jre runtime jars for processing, however this would result in an enormous amount processed data. the
+processing times would be long. implicit methods allows for a way to short circuit this. for example, a runnable that is
+invoked by an executor service. the runnable content might have a critical path to a target invocation , however,
+specifying `run` in the implicit methods argument object gives elaborate the instruction to check for this method on 
+every new object instance. if found, it will immediately include the successive call chain in the graph.
 
 ````json
 {

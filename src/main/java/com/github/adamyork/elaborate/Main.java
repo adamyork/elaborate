@@ -8,11 +8,7 @@ import com.github.adamyork.elaborate.service.ConsoleService;
 import com.github.adamyork.elaborate.service.TextService;
 import com.github.adamyork.elaborate.service.UmlService;
 import com.github.adamyork.elaborate.service.WhiteListService;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.DefaultParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
+import org.apache.commons.cli.*;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -47,7 +43,7 @@ public class Main {
         options.addOption(verboseOption);
         return processCommandLine(args, options)
                 .map(Main::processConfiguration)
-                .orElse(handleCommandLineError(options));
+                .orElseGet(() -> handleCommandLineError(options));
 
     }
 
