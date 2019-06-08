@@ -40,7 +40,7 @@ java -jar elaborate.jar -c "<path to config file>.json" -v
 
 ### more on implicit methods
 why is this needed ? any call found during the processing of classes that is not on the class path will be filtered from
-the results. This can cause issues when trying to locate a target method invocation. one option would be to simply 
+the results. this can cause issues when trying to locate a target method invocation. one option would be to simply 
 provide all of the jre runtime jars for processing, however this would result in an enormous amount processed data. the
 processing times would be long. implicit methods allows for a way to short circuit this. for example, a runnable that is
 invoked by an executor service. the runnable content might have a critical path to a target invocation , however,
@@ -95,6 +95,7 @@ com.github.adamyork.fx5p1d3r.application.view.control.ControlController::handleS
 ````
 #### svg
 **note output format is actually svg**
+**blue boxes represent decisions, when multiple implementations are found. Green boxes are the target invocations**
 ![sample svg output](sample/spider.png?raw=true "sample svg output")
 
 #### limitations

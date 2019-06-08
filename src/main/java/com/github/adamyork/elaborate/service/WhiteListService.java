@@ -37,7 +37,7 @@ public class WhiteListService {
         if (filtered.size() == 0) {
             return Optional.empty();
         }
-        return Optional.of(new MethodInvocation.Builder(node.getType(), node.getMethod(), node.getArguments(), filtered).build());
+        return Optional.of(new MethodInvocation.Builder(node.getType(), node.getMethod(), node.getArguments(), node.maybe(), filtered).build());
     }
 
     private List<MethodInvocation> probablyFilterList(final List<MethodInvocation> methodInvocations,
