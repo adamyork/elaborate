@@ -1,7 +1,7 @@
-group 'com.github.adamyork'
-version '0.1-SNAPSHOT'
+group "com.github.adamyork"
+version "0.1"
 
-apply plugin: 'java'
+apply plugin: "java"
 
 sourceCompatibility = 1.9
 
@@ -9,8 +9,26 @@ repositories {
     mavenCentral()
 }
 
+
+task fatJar(type: Jar) {
+    manifest {
+        attributes "Implementation-Title": "Gradle Jar File Example",
+                "Implementation-Version": version,
+                "Main-Class": "com.github.adamyork.elaborate.Main"
+    }
+    from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
+    with jar
+}
+
 dependencies {
     compile group: "commons-io", name: "commons-io", version: "2.6"
     compile group: "org.jooq", name: "jool", version: "0.9.12"
-    testCompile group: 'junit', name: 'junit', version: '4.12'
+    compile group: "commons-cli", name: "commons-cli", version: "1.4"
+    compile group: "org.apache.commons", name: "commons-lang3", version: "3.7"
+    compile group: "com.fasterxml.jackson.core", name: "jackson-core", version: "2.9.4"
+    compile group: "com.fasterxml.jackson.core", name: "jackson-databind", version: "2.9.4"
+    compile group: "net.sourceforge.plantuml", name: "plantuml", version: "8059"
+    compile group: "org.apache.logging.log4j", name: "log4j-api", version: "2.11.0"
+    compile group: "org.apache.logging.log4j", name: "log4j-core", version: "2.11.0"
+    testCompile group: "junit", name: "junit", version: "4.12"
 }
