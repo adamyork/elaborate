@@ -1,4 +1,4 @@
-package filter;
+package com.github.adamyork.elaborate.filter;
 
 import java.util.List;
 import java.util.Optional;

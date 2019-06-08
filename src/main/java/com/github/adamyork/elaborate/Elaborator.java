@@ -1,9 +1,9 @@
 package com.github.adamyork.elaborate;
 
+import com.github.adamyork.elaborate.filter.ParserPatterns;
+import com.github.adamyork.elaborate.filter.ParserPredicates;
 import com.github.adamyork.elaborate.model.ClassMetadata;
 import com.github.adamyork.elaborate.model.MethodInvocation;
-import filter.ParserPatterns;
-import filter.ParserPredicates;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
