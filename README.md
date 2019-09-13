@@ -14,7 +14,7 @@ command is invoked, elaborate can generate a visual, filtered representation of 
 
 download the elaborate jar
 
-*elaborate requires JRE 9+*
+*elaborate requires JRE 11+*
 
 ## how
 
@@ -96,7 +96,7 @@ com.github.adamyork.fx5p1d3r.application.view.control.ControlController::handleS
 #### svg
 **note output format is actually svg**
 **blue boxes represent decisions, when multiple implementations are found. Green boxes are the target invocations**
-![sample svg output](sample/spider.png?raw=true "sample svg output")
+![sample svg output](sample/spider1.png?raw=true "sample svg output")
 
 #### limitations
 

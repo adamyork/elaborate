@@ -6,3 +6,5 @@ functional/
 build/
 project-jfx.jar-parsed/
 tmp*-parsed/
+gradlew
+gradlew.bat

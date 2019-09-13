@@ -3,6 +3,7 @@ version "0.2"
 
 apply plugin: "java"
 
+//noinspection GroovyUnusedAssignment
 sourceCompatibility = "11.0.4"
 
 repositories {
