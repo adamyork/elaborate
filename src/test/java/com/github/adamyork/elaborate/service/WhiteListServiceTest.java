@@ -1,14 +1,15 @@
 package com.github.adamyork.elaborate.service;
 
 import com.github.adamyork.elaborate.model.MethodInvocation;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
+@SuppressWarnings("WeakerAccess")
 public class WhiteListServiceTest {
 
     @Test
