@@ -11,7 +11,6 @@ command is invoked, elaborate can generate a visual, filtered representation of 
 
 
 ## what 
-https://github.com/adamyork/elaborate/releases/tag/0.1
 download the latest [elaborate jar](https://github.com/adamyork/elaborate/releases/download/0.2/elaborate-0.2.jar)
 
 *elaborate requires JRE 11+*
