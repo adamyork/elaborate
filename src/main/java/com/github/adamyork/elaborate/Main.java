@@ -8,7 +8,11 @@ import com.github.adamyork.elaborate.service.ConsoleService;
 import com.github.adamyork.elaborate.service.TextService;
 import com.github.adamyork.elaborate.service.UmlService;
 import com.github.adamyork.elaborate.service.WhiteListService;
-import org.apache.commons.cli.*;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.DefaultParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.Options;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -88,6 +92,7 @@ public class Main {
         final Optional<List<String>> maybeEntryMethodArgs = Optional.ofNullable(config.getEntryMethodArgs());
 
         return IntStream.range(0, classNames.size())
+                .parallel()
                 .map(index -> elaborate(index, inputPath, classNames, methodNames, includes, excludes,
                         implicitMethods, maybeWhiteList, maybeOutputFilePath, maybeEntryMethodArgs))
                 .sum();
